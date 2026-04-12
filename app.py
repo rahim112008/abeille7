@@ -728,45 +728,80 @@ def ia_call(prompt_text, image_bytes=None, json_mode=False):
                 data = json.loads(r.read())
             return data["choices"][0]["message"]["content"]
 
-        # ── 6. GITHUB MODELS (nouveau endpoint 2025 — models.github.ai) ──────
+        # ── 6. GITHUB MODELS (endpoint officiel 2025 — models.github.ai) ───────
         elif ptype == "github_models":
             import urllib.request
-            base_url = cfg.get("base_url", "https://models.github.ai/inference")
+            # URL EXACTE selon la doc officielle GitHub (ne pas ajouter /chat/completions)
+            endpoint = "https://models.github.ai/inference/chat/completions"
+
             messages = []
             if image_bytes and cfg.get("vision"):
+                # GitHub Models supporte les images via content array
                 messages.append({
                     "role": "user",
                     "content": [
                         {"type": "image_url",
-                         "image_url": {"url": f"data:image/jpeg;base64,"
-                                              f"{base64.b64encode(image_bytes).decode()}"}},
+                         "image_url": {
+                             "url": f"data:image/jpeg;base64,{base64.b64encode(image_bytes).decode()}"
+                         }},
                         {"type": "text", "text": prompt_text}
                     ]
                 })
             else:
                 messages.append({"role": "user", "content": prompt_text})
 
-            body = {"model": model, "messages": messages,
-                    "max_tokens": 2000, "temperature": 0.3}
-            if json_mode:
+            body = {
+                "model":       model,       # ex: "openai/gpt-4o"
+                "messages":    messages,
+                "max_tokens":  2000,
+                "temperature": 0.3,         # range [0,1] selon doc GitHub
+            }
+            # json_mode seulement si demandé ET supporté par le modèle
+            if json_mode and model.startswith("openai/"):
                 body["response_format"] = {"type": "json_object"}
+
             payload = json.dumps(body).encode()
             headers = {
-                "Content-Type":      "application/json",
-                "Accept":            "application/vnd.github+json",
-                "Authorization":     f"Bearer {api_key}",
-                "X-GitHub-Api-Version": "2026-03-10",
+                "Content-Type":         "application/json",
+                "Accept":               "application/vnd.github+json",
+                "Authorization":        f"Bearer {api_key}",
+                "X-GitHub-Api-Version": "2022-11-28",   # version officielle de la doc
             }
-            req = urllib.request.Request(
-                f"{base_url}/chat/completions",
-                data=payload, headers=headers
-            )
+            req = urllib.request.Request(endpoint, data=payload, headers=headers)
             with urllib.request.urlopen(req, timeout=90) as r:
                 data = json.loads(r.read())
             return data["choices"][0]["message"]["content"]
 
         return None
 
+    except urllib.error.HTTPError as e:
+        body = ""
+        try:
+            body = e.read().decode()[:400]
+        except Exception:
+            pass
+        # Messages d'erreur guidés selon le fournisseur et le code HTTP
+        if e.code == 401:
+            if ptype == "github_models":
+                return (f"❌ GitHub Models — Authentification échouée (401).\n"
+                        f"→ Vérifiez que votre token est un **Fine-grained PAT** (github_pat_...)\n"
+                        f"→ Le token doit avoir la permission **Models → Read-only**\n"
+                        f"→ Les tokens classiques ghp_... ne fonctionnent PAS\n"
+                        f"→ Créez un nouveau token sur : github.com/settings/personal-access-tokens/new")
+            return f"❌ Erreur {provider_name} : HTTP 401 Non autorisé — vérifiez votre clé API. {body}"
+        elif e.code == 404:
+            if ptype == "github_models":
+                return (f"❌ GitHub Models — Ressource introuvable (404).\n"
+                        f"→ Modèle '{model}' non disponible. Essayez 'openai/gpt-4.1' ou 'openai/gpt-4o'\n"
+                        f"→ Vérifiez la liste des modèles sur : github.com/marketplace/models\n"
+                        f"Détail : {body}")
+            return f"❌ Erreur {provider_name} : HTTP 404 — endpoint ou modèle introuvable. {body}"
+        elif e.code == 429:
+            return f"❌ Erreur {provider_name} : Quota dépassé (429) — attendez quelques minutes. {body}"
+        elif e.code == 422:
+            return f"❌ Erreur {provider_name} : Paramètres invalides (422). {body}"
+        else:
+            return f"❌ Erreur {provider_name} : HTTP {e.code} {e.reason}. {body}"
     except Exception as e:
         return f"❌ Erreur {provider_name} : {e}"
 
