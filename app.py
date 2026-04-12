@@ -569,13 +569,16 @@ IA_PROVIDERS = {
         "key":        "github_api_key",
         "env":        "GITHUB_TOKEN",
         "url":        "https://github.com/settings/tokens",
-        "prefix":     "ghp_",
-        "models":     ["gpt-4o", "meta-llama/Llama-3.3-70B-Instruct", "DeepSeek-R1"],
-        "default":    "gpt-4o",
-        "quota":      "Gratuit · 10-15 RPM · 50-150 req/jour",
+        "prefix":     "github_pat_",
+        "models":     ["openai/gpt-4o", "openai/gpt-4.1",
+                       "meta-llama/Llama-3.3-70B-Instruct",
+                       "deepseek/DeepSeek-R1", "mistral-ai/Mistral-Large-2411"],
+        "default":    "openai/gpt-4o",
+        "quota":      "Gratuit · 15 RPM · 150 req/jour · Fine-grained PAT",
         "vision":     True,
-        "type":       "openai_compat",
-        "base_url":   "https://models.inference.ai.azure.com",
+        "type":       "github_models",
+        "base_url":   "https://models.github.ai/inference",
+        "note":       "Token Fine-grained PAT avec permission models:read requis",
     },
 }
 
@@ -691,7 +694,7 @@ def ia_call(prompt_text, image_bytes=None, json_mode=False):
                 return data[0].get("generated_text", str(data))
             return str(data)
 
-        # ── 5. OPENAI-COMPATIBLE (Groq, OpenRouter, Mistral, Cerebras, Zhipu, GitHub) ──
+        # ── 5. OPENAI-COMPATIBLE (Groq, OpenRouter, Mistral, Cerebras, Zhipu) ──
         elif ptype == "openai_compat":
             import urllib.request
             base_url = cfg.get("base_url", "")
@@ -721,6 +724,43 @@ def ia_call(prompt_text, image_bytes=None, json_mode=False):
                 headers["X-Title"] = "ApiTrack Pro"
             req = urllib.request.Request(f"{base_url}/chat/completions",
                                          data=payload, headers=headers)
+            with urllib.request.urlopen(req, timeout=90) as r:
+                data = json.loads(r.read())
+            return data["choices"][0]["message"]["content"]
+
+        # ── 6. GITHUB MODELS (nouveau endpoint 2025 — models.github.ai) ──────
+        elif ptype == "github_models":
+            import urllib.request
+            base_url = cfg.get("base_url", "https://models.github.ai/inference")
+            messages = []
+            if image_bytes and cfg.get("vision"):
+                messages.append({
+                    "role": "user",
+                    "content": [
+                        {"type": "image_url",
+                         "image_url": {"url": f"data:image/jpeg;base64,"
+                                              f"{base64.b64encode(image_bytes).decode()}"}},
+                        {"type": "text", "text": prompt_text}
+                    ]
+                })
+            else:
+                messages.append({"role": "user", "content": prompt_text})
+
+            body = {"model": model, "messages": messages,
+                    "max_tokens": 2000, "temperature": 0.3}
+            if json_mode:
+                body["response_format"] = {"type": "json_object"}
+            payload = json.dumps(body).encode()
+            headers = {
+                "Content-Type":      "application/json",
+                "Accept":            "application/vnd.github+json",
+                "Authorization":     f"Bearer {api_key}",
+                "X-GitHub-Api-Version": "2026-03-10",
+            }
+            req = urllib.request.Request(
+                f"{base_url}/chat/completions",
+                data=payload, headers=headers
+            )
             with urllib.request.urlopen(req, timeout=90) as r:
                 data = json.loads(r.read())
             return data["choices"][0]["message"]["content"]
@@ -931,9 +971,25 @@ def widget_ia_selector():
                     padding:8px 12px;margin:6px 0;line-height:1.6'>
         📊 <b>Quota :</b> {cfg['quota']}<br>
         🖼️ <b>Vision (photo) :</b> {'✅ Oui' if cfg['vision'] else '❌ Texte seul'}<br>
-        🔑 <b>Clé :</b> <a href='{cfg['url']}' target='_blank'>{cfg['url']}</a>
+        🔑 <b>Obtenir la clé :</b> <a href='{cfg['url']}' target='_blank'>{cfg['url']}</a>
+        {f"<br>⚠️ <b>Note :</b> {cfg['note']}" if cfg.get('note') else ""}
         </div>
         """, unsafe_allow_html=True)
+
+        # Instructions spéciales GitHub Models
+        if cfg.get("type") == "github_models":
+            st.markdown("""
+            <div style='background:#E3F2FD;border:1px solid #90CAF9;border-radius:6px;
+                        padding:10px 14px;font-size:.78rem;color:#1a1209;margin-bottom:8px'>
+            <b>🐙 Comment créer le bon token GitHub :</b><br>
+            1. Allez sur <a href='https://github.com/settings/personal-access-tokens/new' target='_blank'>
+               github.com/settings/personal-access-tokens/new</a><br>
+            2. Choisissez <b>"Fine-grained personal access token"</b><br>
+            3. Dans <b>Permissions → Account permissions</b> → <b>Models</b> → <b>Read-only</b><br>
+            4. Cliquez <b>Generate token</b> → copiez le token (<code>github_pat_...</code>)<br>
+            5. <b>⚠️ Les tokens classiques <code>ghp_...</code> ne fonctionnent PAS</b>
+            </div>
+            """, unsafe_allow_html=True)
 
         api_key = get_api_key_for_provider(sel)
         new_key = st.text_input(
@@ -2397,8 +2453,24 @@ def page_admin():
         🔗 Obtenir la clé : <a href='{cfg_sel["url"]}' target='_blank'>{cfg_sel["url"]}</a><br>
         📊 Quota : {cfg_sel['quota']}<br>
         🖼️ Vision/Photo : {'✅ Supporté' if cfg_sel['vision'] else '❌ Texte uniquement'}
+        {f"<br>⚠️ {cfg_sel['note']}" if cfg_sel.get('note') else ""}
         </div>
         """, unsafe_allow_html=True)
+
+        # Instructions spéciales GitHub Models
+        if cfg_sel.get("type") == "github_models":
+            st.markdown("""
+            <div style='background:#E3F2FD;border:1px solid #90CAF9;border-radius:6px;
+                        padding:12px 14px;font-size:.8rem;color:#1a1209;margin-bottom:10px'>
+            <b>🐙 Créer le token GitHub correct (Fine-grained PAT) :</b><br>
+            1. <a href='https://github.com/settings/personal-access-tokens/new' target='_blank'>
+               github.com/settings/personal-access-tokens/new</a><br>
+            2. Choisissez <b>"Fine-grained personal access token"</b><br>
+            3. <b>Permissions → Account permissions → Models → Read-only</b><br>
+            4. Générez et copiez le token <code>github_pat_xxxx...</code><br>
+            5. ⚠️ <b>Les tokens classiques <code>ghp_</code> retournent HTTP 401</b> — utilisez uniquement un Fine-grained PAT
+            </div>
+            """, unsafe_allow_html=True)
 
         with st.form(f"key_form_{prov_sel}"):
             new_key = st.text_input(
