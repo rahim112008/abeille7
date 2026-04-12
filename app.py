@@ -1,0 +1,2533 @@
+"""
+ApiTrack Pro – Application de gestion apicole professionnelle
+Streamlit + Python + SQLite
+"""
+
+import streamlit as st
+import pandas as pd
+import numpy as np
+import sqlite3
+import hashlib
+import json
+import os
+import datetime
+from pathlib import Path
+
+# ── Plotly (graphiques) ──────────────────────────────────────────────────────
+import plotly.express as px
+import plotly.graph_objects as go
+
+# ── Folium (cartographie) ────────────────────────────────────────────────────
+try:
+    import folium
+    from streamlit_folium import st_folium
+    FOLIUM_OK = True
+except ImportError:
+    FOLIUM_OK = False
+
+# ── TensorFlow (optionnel – deep learning) ───────────────────────────────────
+try:
+    import tensorflow as tf
+    TF_OK = True
+except ImportError:
+    TF_OK = False
+
+# ── SentinelHub (optionnel) ──────────────────────────────────────────────────
+try:
+    from sentinelhub import SHConfig, BBox, CRS, DataCollection, SentinelHubRequest
+    SH_OK = True
+except ImportError:
+    SH_OK = False
+
+# ── Anthropic (IA gratuite via Claude) ───────────────────────────────────────
+try:
+    import anthropic
+    ANTHROPIC_OK = True
+except ImportError:
+    ANTHROPIC_OK = False
+
+# ── Base64 pour upload images ─────────────────────────────────────────────────
+import base64
+
+# ════════════════════════════════════════════════════════════════════════════
+# CONFIGURATION STREAMLIT
+# ════════════════════════════════════════════════════════════════════════════
+st.set_page_config(
+    page_title="ApiTrack Pro",
+    page_icon="🐝",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+DB_PATH = "apitrack.db"
+
+# ════════════════════════════════════════════════════════════════════════════
+# CSS PERSONNALISÉ
+# ════════════════════════════════════════════════════════════════════════════
+def inject_css():
+    st.markdown("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400&display=swap');
+
+    /* Variables */
+    :root {
+        --honey: #C8820A;
+        --honey-light: #F5C842;
+        --honey-bg: #FFF8E8;
+        --dark: #1a1209;
+        --muted: #8B7355;
+        --surface: #FFFDF7;
+        --border: #E8D9B0;
+    }
+
+    /* Fond général */
+    .stApp { background-color: #FFF8E8; }
+    .main .block-container { padding: 1.5rem 2rem; max-width: 1400px; }
+
+    /* Sidebar */
+    [data-testid="stSidebar"] {
+        background: #2C1A06 !important;
+        border-right: 1px solid #3d2a0e;
+    }
+    [data-testid="stSidebar"] * { color: #b8956a !important; }
+    [data-testid="stSidebar"] .stSelectbox label { color: #7a5c3a !important; }
+
+    /* Titres */
+    h1 { font-family: 'Playfair Display', serif !important; color: #1a1209 !important; }
+    h2 { font-family: 'Playfair Display', serif !important; color: #2C1A06 !important; font-size: 1.3rem !important; }
+    h3 { font-family: 'Inter', sans-serif !important; color: #4a3410 !important; font-size: 1rem !important; font-weight: 500 !important; }
+
+    /* Métriques */
+    [data-testid="metric-container"] {
+        background: #FFFDF7;
+        border: 1px solid #E8D9B0;
+        border-radius: 10px;
+        padding: 14px 16px;
+        border-top: 3px solid #C8820A;
+    }
+    [data-testid="stMetricValue"] { color: #1a1209 !important; font-family: 'Playfair Display', serif !important; font-size: 2rem !important; }
+    [data-testid="stMetricLabel"] { color: #8B7355 !important; font-size: 0.75rem !important; text-transform: uppercase; letter-spacing: 0.06em; }
+
+    /* Boutons */
+    .stButton > button {
+        background: #C8820A !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 6px !important;
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 500 !important;
+        font-size: 0.85rem !important;
+    }
+    .stButton > button:hover { background: #a06808 !important; }
+
+    /* Tables */
+    .dataframe { font-family: 'Inter', sans-serif !important; font-size: 0.82rem !important; }
+    thead th { background: #FFF8E8 !important; color: #8B7355 !important; font-weight: 500 !important; text-transform: uppercase; font-size: 0.7rem !important; letter-spacing: 0.06em; }
+
+    /* Cards custom */
+    .api-card {
+        background: #FFFDF7;
+        border: 1px solid #E8D9B0;
+        border-radius: 10px;
+        padding: 16px;
+        margin-bottom: 12px;
+    }
+    .api-card-title {
+        font-family: 'Playfair Display', serif;
+        font-size: 1rem;
+        font-weight: 600;
+        color: #1a1209;
+        margin-bottom: 10px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #E8D9B0;
+    }
+
+    /* Badges de statut */
+    .badge-ok { background:#E8F5E9; color:#2E7D32; border:1px solid #A5D6A7; padding:3px 10px; border-radius:20px; font-size:0.72rem; font-weight:500; }
+    .badge-warn { background:#FFF8E1; color:#F57F17; border:1px solid #FFE082; padding:3px 10px; border-radius:20px; font-size:0.72rem; font-weight:500; }
+    .badge-crit { background:#FFEBEE; color:#C62828; border:1px solid #EF9A9A; padding:3px 10px; border-radius:20px; font-size:0.72rem; font-weight:500; }
+
+    /* Footer */
+    .api-footer {
+        text-align: center;
+        font-size: 0.72rem;
+        color: #8B7355;
+        padding: 12px;
+        border-top: 1px solid #E8D9B0;
+        margin-top: 2rem;
+        font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Input styling */
+    .stTextInput input, .stNumberInput input, .stSelectbox select {
+        border: 1px solid #E8D9B0 !important;
+        border-radius: 6px !important;
+        background: #FFFDF7 !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# BASE DE DONNÉES SQLITE
+# ════════════════════════════════════════════════════════════════════════════
+def get_db():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db():
+    conn = get_db()
+    c = conn.cursor()
+
+    c.executescript("""
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        email TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS ruches (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nom TEXT NOT NULL,
+        race TEXT DEFAULT 'intermissa',
+        date_installation TEXT,
+        localisation TEXT,
+        latitude REAL,
+        longitude REAL,
+        statut TEXT DEFAULT 'actif',
+        notes TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS inspections (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ruche_id INTEGER REFERENCES ruches(id) ON DELETE CASCADE,
+        date_inspection TEXT NOT NULL,
+        poids_kg REAL,
+        nb_cadres INTEGER,
+        varroa_pct REAL,
+        reine_vue INTEGER DEFAULT 1,
+        comportement TEXT DEFAULT 'calme',
+        notes TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS traitements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ruche_id INTEGER REFERENCES ruches(id) ON DELETE CASCADE,
+        date_debut TEXT NOT NULL,
+        date_fin TEXT,
+        produit TEXT,
+        pathologie TEXT,
+        dose TEXT,
+        duree_jours INTEGER,
+        statut TEXT DEFAULT 'en_cours',
+        notes TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS recoltes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ruche_id INTEGER REFERENCES ruches(id) ON DELETE CASCADE,
+        date_recolte TEXT NOT NULL,
+        type_produit TEXT DEFAULT 'miel',
+        quantite_kg REAL,
+        humidite_pct REAL,
+        ph REAL,
+        hda_pct REAL,
+        qualite TEXT DEFAULT 'A',
+        notes TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS morph_analyses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ruche_id INTEGER REFERENCES ruches(id),
+        date_analyse TEXT NOT NULL,
+        longueur_aile_mm REAL,
+        largeur_aile_mm REAL,
+        indice_cubital REAL,
+        glossa_mm REAL,
+        tomentum INTEGER,
+        pigmentation TEXT,
+        race_probable TEXT,
+        confiance_json TEXT,
+        specialisation TEXT,
+        notes TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS zones (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nom TEXT NOT NULL,
+        type_zone TEXT DEFAULT 'nectar',
+        latitude REAL,
+        longitude REAL,
+        superficie_ha REAL,
+        flore_principale TEXT,
+        ndvi REAL,
+        potentiel TEXT DEFAULT 'modere',
+        notes TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS journal (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
+        action TEXT NOT NULL,
+        details TEXT,
+        utilisateur TEXT DEFAULT 'admin'
+    );
+
+    CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    );
+    """)
+
+    # Utilisateur admin par défaut
+    pwd_hash = hashlib.sha256("admin1234".encode()).hexdigest()
+    c.execute("INSERT OR IGNORE INTO users (username, password_hash, email) VALUES (?, ?, ?)",
+              ("admin", pwd_hash, "admin@apitrack.pro"))
+
+    # Données de démonstration
+    _insert_demo_data(c)
+
+    conn.commit()
+    conn.close()
+
+
+def _insert_demo_data(c):
+    """Insère des données démo si la table ruches est vide."""
+    c.execute("SELECT COUNT(*) FROM ruches")
+    if c.fetchone()[0] > 0:
+        return
+
+    ruches_demo = [
+        ("Zitoun A", "intermissa", "2023-03-15", "Zone Atlas Nord", 34.88, 1.32, "actif"),
+        ("Sahara B", "sahariensis", "2023-04-01", "Zone Jujubiers", 34.85, 1.35, "actif"),
+        ("Atlas C", "hybride", "2022-05-20", "Zone Cèdres", 34.90, 1.28, "actif"),
+        ("Cedre D", "intermissa", "2023-02-10", "Zone Atlas Sud", 34.82, 1.31, "actif"),
+        ("Cedre E", "intermissa", "2024-03-01", "Zone Atlas Nord", 34.89, 1.33, "actif"),
+        ("Oued F", "intermissa", "2024-04-15", "Bord Oued", 34.87, 1.30, "actif"),
+    ]
+    for r in ruches_demo:
+        c.execute("INSERT INTO ruches (nom, race, date_installation, localisation, latitude, longitude, statut) VALUES (?,?,?,?,?,?,?)", r)
+
+    today = datetime.date.today()
+    inspections_demo = [
+        (1, str(today), 28.4, 12, 0.8, 1, "calme", "Excellent couvain"),
+        (2, str(today - datetime.timedelta(days=1)), 25.6, 10, 1.2, 1, "calme", "RAS"),
+        (3, str(today - datetime.timedelta(days=2)), 22.1, 9, 2.4, 0, "nerveuse", "Reine introuvable"),
+        (4, str(today - datetime.timedelta(days=3)), 26.9, 11, 1.1, 1, "très calme", "Top productrice"),
+        (6, str(today - datetime.timedelta(days=1)), 19.2, 7, 3.8, 1, "agressive", "Traitement urgent"),
+    ]
+    for i in inspections_demo:
+        c.execute("INSERT INTO inspections (ruche_id,date_inspection,poids_kg,nb_cadres,varroa_pct,reine_vue,comportement,notes) VALUES (?,?,?,?,?,?,?,?)", i)
+
+    recoltes_demo = [
+        (1, "2025-03-01", "miel", 48.0, 17.2, 3.8, None, "A"),
+        (2, "2025-03-01", "miel", 32.0, 17.8, 3.9, None, "A"),
+        (1, "2025-01-15", "pollen", 4.5, None, None, None, "A"),
+        (4, "2025-03-15", "gelée royale", 0.6, None, None, 2.1, "A+"),
+        (1, "2024-09-01", "miel", 62.0, 17.0, 3.7, None, "A"),
+    ]
+    for r in recoltes_demo:
+        c.execute("INSERT INTO recoltes (ruche_id,date_recolte,type_produit,quantite_kg,humidite_pct,ph,hda_pct,qualite) VALUES (?,?,?,?,?,?,?,?)", r)
+
+    morph_demo = [
+        (1, str(today), 9.2, 3.1, 2.3, 6.1, 2, "Noir", "intermissa",
+         json.dumps([{"race":"intermissa","confiance":72},{"race":"sahariensis","confiance":18},{"race":"hybride","confiance":8},{"race":"ligustica","confiance":2},{"race":"carnica","confiance":0}]),
+         "Production miel + propolis"),
+    ]
+    for m in morph_demo:
+        c.execute("INSERT INTO morph_analyses (ruche_id,date_analyse,longueur_aile_mm,largeur_aile_mm,indice_cubital,glossa_mm,tomentum,pigmentation,race_probable,confiance_json,specialisation) VALUES (?,?,?,?,?,?,?,?,?,?,?)", m)
+
+    zones_demo = [
+        ("Forêt chênes-lièges", "nectar+pollen", 34.88, 1.31, 120.0, "Quercus suber", 0.72, "élevé"),
+        ("Jujubiers Est", "nectar", 34.86, 1.34, 45.0, "Ziziphus lotus", 0.65, "élevé"),
+        ("Lavande Sud", "pollen", 34.83, 1.30, 18.0, "Lavandula stoechas", 0.58, "modéré"),
+        ("Romarin Ouest", "nectar+pollen", 34.89, 1.28, 30.0, "Rosmarinus officinalis", 0.61, "modéré"),
+    ]
+    for z in zones_demo:
+        c.execute("INSERT INTO zones (nom,type_zone,latitude,longitude,superficie_ha,flore_principale,ndvi,potentiel) VALUES (?,?,?,?,?,?,?,?)", z)
+
+    journal_demo = [
+        ("Initialisation base de données", "Données démo insérées", "système"),
+        ("Inspection R07 critique", "Varroa 3.8% — alerte générée", "admin"),
+        ("Récolte enregistrée", "48 kg miel toutes fleurs, ruche R01", "admin"),
+        ("Morphométrie R01", "intermissa 72% — JSON sauvegardé", "admin"),
+    ]
+    for j in journal_demo:
+        c.execute("INSERT INTO journal (action,details,utilisateur) VALUES (?,?,?)", j)
+
+    c.execute("INSERT OR IGNORE INTO settings VALUES ('rucher_nom','Rucher de l Atlas')")
+    c.execute("INSERT OR IGNORE INTO settings VALUES ('localisation','Tlemcen, Algérie')")
+    c.execute("INSERT OR IGNORE INTO settings VALUES ('version','2.0.0')")
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# AUTHENTIFICATION
+# ════════════════════════════════════════════════════════════════════════════
+def check_login(username, password):
+    conn = get_db()
+    pwd_hash = hashlib.sha256(password.encode()).hexdigest()
+    user = conn.execute(
+        "SELECT * FROM users WHERE username=? AND password_hash=?",
+        (username, pwd_hash)
+    ).fetchone()
+    conn.close()
+    return user
+
+
+def login_page():
+    col1, col2, col3 = st.columns([1, 1.2, 1])
+    with col2:
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        st.markdown("""
+        <div style='text-align:center;margin-bottom:24px'>
+            <div style='font-size:3rem'>🐝</div>
+            <h1 style='font-family:Playfair Display,serif;color:#1a1209;font-size:2rem;margin:8px 0 4px'>ApiTrack Pro</h1>
+            <p style='color:#8B7355;font-size:.9rem'>Gestion apicole professionnelle</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        with st.form("login_form"):
+            username = st.text_input("Identifiant", placeholder="admin")
+            password = st.text_input("Mot de passe", type="password", placeholder="••••••••")
+            submitted = st.form_submit_button("Se connecter", use_container_width=True)
+
+        if submitted:
+            user = check_login(username, password)
+            if user:
+                st.session_state.logged_in = True
+                st.session_state.username = username
+                log_action("Connexion", f"Utilisateur {username} connecté")
+                st.rerun()
+            else:
+                st.error("Identifiants incorrects. (Démo : admin / admin1234)")
+
+        st.markdown("<p style='text-align:center;font-size:.75rem;color:#8B7355;margin-top:16px'>admin / admin1234 pour la démo</p>", unsafe_allow_html=True)
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# UTILITAIRES
+# ════════════════════════════════════════════════════════════════════════════
+def log_action(action, details="", user=None):
+    u = user or st.session_state.get("username", "système")
+    conn = get_db()
+    conn.execute("INSERT INTO journal (action,details,utilisateur) VALUES (?,?,?)", (action, details, u))
+    conn.commit()
+    conn.close()
+
+
+def status_badge(varroa):
+    if varroa is None:
+        return "N/A"
+    if varroa >= 3.0:
+        return "🔴 Critique"
+    elif varroa >= 2.0:
+        return "🟡 Surveiller"
+    else:
+        return "🟢 Bon"
+
+
+def get_setting(key, default=""):
+    conn = get_db()
+    row = conn.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
+    conn.close()
+    return row[0] if row else default
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# MOTEUR IA MULTI-FOURNISSEURS — 100% GRATUITS
+# ════════════════════════════════════════════════════════════════════════════
+#
+# Fournisseurs supportés (tous gratuits) :
+#   1. Anthropic Claude   — claude-opus-4-5       (sk-ant-...)
+#   2. Google Gemma 4     — gemma-4-31b-it         (via Gemini API, AIzaSy...)
+#   3. Groq               — llama-3.3-70b-versatile (gsk_...)
+#   4. OpenRouter         — llama-4/deepseek:free   (sk-or-...)
+#   5. Mistral            — mistral-large-latest    (...)
+#   6. Cohere             — command-r-plus          (...)
+#   7. Zhipu AI (GLM)     — glm-4v-flash            (...)
+#   8. Cerebras           — llama-3.3-70b           (csk-...)
+#   9. Hugging Face       — mistralai/Mixtral-8x7B  (hf_...)
+#  10. GitHub Models      — gpt-4o / llama-3.3-70b  (ghp_...)
+# ════════════════════════════════════════════════════════════════════════════
+
+# ── Catalogue des fournisseurs IA gratuits ───────────────────────────────────
+IA_PROVIDERS = {
+    "🤖 Claude (Anthropic)": {
+        "key":        "anthropic_api_key",
+        "env":        "ANTHROPIC_API_KEY",
+        "url":        "https://console.anthropic.com",
+        "prefix":     "sk-ant-",
+        "models":     ["claude-opus-4-5", "claude-haiku-4-5-20251001"],
+        "default":    "claude-opus-4-5",
+        "quota":      "~5$ crédits offerts · ~500 analyses",
+        "vision":     True,
+        "type":       "anthropic",
+    },
+    "🌟 Gemma 4 (Google AI Studio)": {
+        "key":        "google_api_key",
+        "env":        "GOOGLE_API_KEY",
+        "url":        "https://aistudio.google.com/app/apikey",
+        "prefix":     "AIzaSy",
+        "models":     ["gemma-4-31b-it", "gemma-4-27b-it", "gemini-2.0-flash"],
+        "default":    "gemma-4-31b-it",
+        "quota":      "Gratuit · 1 500 req/jour · 1M tokens/min",
+        "vision":     True,
+        "type":       "google",
+    },
+    "⚡ Groq (Ultra-rapide)": {
+        "key":        "groq_api_key",
+        "env":        "GROQ_API_KEY",
+        "url":        "https://console.groq.com/keys",
+        "prefix":     "gsk_",
+        "models":     ["llama-3.3-70b-versatile", "llama-4-scout-17b-16e-instruct", "gemma2-9b-it"],
+        "default":    "llama-3.3-70b-versatile",
+        "quota":      "Gratuit · 30 RPM · 1 000 RPD · 800 tok/s",
+        "vision":     False,
+        "type":       "openai_compat",
+        "base_url":   "https://api.groq.com/openai/v1",
+    },
+    "🔀 OpenRouter (Multi-modèles)": {
+        "key":        "openrouter_api_key",
+        "env":        "OPENROUTER_API_KEY",
+        "url":        "https://openrouter.ai/keys",
+        "prefix":     "sk-or-",
+        "models":     ["meta-llama/llama-4-maverick:free", "deepseek/deepseek-r1:free",
+                       "google/gemma-3-27b-it:free", "mistralai/mistral-7b-instruct:free"],
+        "default":    "meta-llama/llama-4-maverick:free",
+        "quota":      "Gratuit · ~50 req/jour · accès 200+ modèles",
+        "vision":     False,
+        "type":       "openai_compat",
+        "base_url":   "https://openrouter.ai/api/v1",
+    },
+    "🇪🇺 Mistral AI (GDPR)": {
+        "key":        "mistral_api_key",
+        "env":        "MISTRAL_API_KEY",
+        "url":        "https://console.mistral.ai/api-keys",
+        "prefix":     "",
+        "models":     ["mistral-large-latest", "mistral-small-latest", "open-mistral-7b"],
+        "default":    "mistral-large-latest",
+        "quota":      "Gratuit · 1 req/s · 1 milliard tok/mois",
+        "vision":     False,
+        "type":       "openai_compat",
+        "base_url":   "https://api.mistral.ai/v1",
+    },
+    "🔍 Cohere (RAG/Search)": {
+        "key":        "cohere_api_key",
+        "env":        "COHERE_API_KEY",
+        "url":        "https://dashboard.cohere.com/api-keys",
+        "prefix":     "",
+        "models":     ["command-r-plus", "command-r", "command-a-03-2025"],
+        "default":    "command-r-plus",
+        "quota":      "Gratuit · 20 RPM · 1 000 req/mois",
+        "vision":     False,
+        "type":       "cohere",
+    },
+    "🇨🇳 Zhipu AI / GLM (Gratuit illimité)": {
+        "key":        "zhipu_api_key",
+        "env":        "ZHIPU_API_KEY",
+        "url":        "https://open.bigmodel.cn/usercenter/apikeys",
+        "prefix":     "",
+        "models":     ["glm-4v-flash", "glm-4-flash", "glm-4-plus"],
+        "default":    "glm-4v-flash",
+        "quota":      "Gratuit · Limites non documentées · Vision OK",
+        "vision":     True,
+        "type":       "openai_compat",
+        "base_url":   "https://open.bigmodel.cn/api/paas/v4",
+    },
+    "🧠 Cerebras (Très rapide)": {
+        "key":        "cerebras_api_key",
+        "env":        "CEREBRAS_API_KEY",
+        "url":        "https://cloud.cerebras.ai/platform",
+        "prefix":     "csk-",
+        "models":     ["llama-3.3-70b", "qwen3-235b", "llama-4-scout-17b"],
+        "default":    "llama-3.3-70b",
+        "quota":      "Gratuit · 30 RPM · 14 400 RPD",
+        "vision":     False,
+        "type":       "openai_compat",
+        "base_url":   "https://api.cerebras.ai/v1",
+    },
+    "🤗 Hugging Face (10 000 modèles)": {
+        "key":        "hf_api_key",
+        "env":        "HF_API_KEY",
+        "url":        "https://huggingface.co/settings/tokens",
+        "prefix":     "hf_",
+        "models":     ["mistralai/Mixtral-8x7B-Instruct-v0.1",
+                       "meta-llama/Llama-3.3-70B-Instruct",
+                       "Qwen/Qwen2.5-72B-Instruct"],
+        "default":    "mistralai/Mixtral-8x7B-Instruct-v0.1",
+        "quota":      "Gratuit · Serverless Inference · modèles <10GB",
+        "vision":     False,
+        "type":       "huggingface",
+    },
+    "🐙 GitHub Models (GPT-4o gratuit)": {
+        "key":        "github_api_key",
+        "env":        "GITHUB_TOKEN",
+        "url":        "https://github.com/settings/tokens",
+        "prefix":     "ghp_",
+        "models":     ["gpt-4o", "meta-llama/Llama-3.3-70B-Instruct", "DeepSeek-R1"],
+        "default":    "gpt-4o",
+        "quota":      "Gratuit · 10-15 RPM · 50-150 req/jour",
+        "vision":     True,
+        "type":       "openai_compat",
+        "base_url":   "https://models.inference.ai.azure.com",
+    },
+}
+
+
+def get_active_provider():
+    """Retourne le nom du fournisseur actif sélectionné par l'utilisateur."""
+    return get_setting("ia_provider", list(IA_PROVIDERS.keys())[0])
+
+
+def get_active_model():
+    """Retourne le modèle actif sélectionné."""
+    provider = get_active_provider()
+    saved = get_setting("ia_model", "")
+    if saved and saved in IA_PROVIDERS.get(provider, {}).get("models", []):
+        return saved
+    return IA_PROVIDERS.get(provider, {}).get("default", "")
+
+
+def get_api_key_for_provider(provider_name):
+    """Récupère la clé API pour un fournisseur donné."""
+    cfg = IA_PROVIDERS.get(provider_name, {})
+    key = get_setting(cfg.get("key", ""), "")
+    if not key:
+        key = os.environ.get(cfg.get("env", ""), "")
+    return key
+
+
+def ia_call(prompt_text, image_bytes=None, json_mode=False):
+    """
+    Appel unifié vers le fournisseur IA actif.
+    Retourne le texte de la réponse ou None en cas d'erreur.
+    """
+    provider_name = get_active_provider()
+    model         = get_active_model()
+    api_key       = get_api_key_for_provider(provider_name)
+    cfg           = IA_PROVIDERS.get(provider_name, {})
+    ptype         = cfg.get("type", "")
+
+    if not api_key:
+        return None
+
+    try:
+        # ── 1. ANTHROPIC ──────────────────────────────────────────────────
+        if ptype == "anthropic" and ANTHROPIC_OK:
+            client = anthropic.Anthropic(api_key=api_key)
+            content = []
+            if image_bytes and cfg.get("vision"):
+                content.append({
+                    "type": "image",
+                    "source": {"type": "base64", "media_type": "image/jpeg",
+                               "data": base64.b64encode(image_bytes).decode()}
+                })
+            content.append({"type": "text", "text": prompt_text})
+            resp = client.messages.create(model=model, max_tokens=2000,
+                                          messages=[{"role": "user", "content": content}])
+            return resp.content[0].text
+
+        # ── 2. GOOGLE (Gemini API — Gemma 4 + Gemini) ────────────────────
+        elif ptype == "google":
+            import urllib.request, urllib.parse
+            parts = []
+            if image_bytes and cfg.get("vision"):
+                parts.append({
+                    "inline_data": {
+                        "mime_type": "image/jpeg",
+                        "data": base64.b64encode(image_bytes).decode()
+                    }
+                })
+            parts.append({"text": prompt_text})
+            payload = json.dumps({"contents": [{"parts": parts}]}).encode()
+            url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
+                   f"{model}:generateContent?key={api_key}")
+            req = urllib.request.Request(url, data=payload,
+                                         headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=60) as r:
+                data = json.loads(r.read())
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+
+        # ── 3. COHERE ─────────────────────────────────────────────────────
+        elif ptype == "cohere":
+            import urllib.request
+            payload = json.dumps({
+                "model": model,
+                "message": prompt_text,
+                "temperature": 0.3
+            }).encode()
+            req = urllib.request.Request(
+                "https://api.cohere.ai/v1/chat",
+                data=payload,
+                headers={"Content-Type": "application/json",
+                         "Authorization": f"Bearer {api_key}"}
+            )
+            with urllib.request.urlopen(req, timeout=60) as r:
+                data = json.loads(r.read())
+            return data["text"]
+
+        # ── 4. HUGGING FACE ───────────────────────────────────────────────
+        elif ptype == "huggingface":
+            import urllib.request
+            payload = json.dumps({
+                "inputs": prompt_text,
+                "parameters": {"max_new_tokens": 1800, "temperature": 0.4}
+            }).encode()
+            url = f"https://api-inference.huggingface.co/models/{model}"
+            req = urllib.request.Request(
+                url, data=payload,
+                headers={"Content-Type": "application/json",
+                         "Authorization": f"Bearer {api_key}"}
+            )
+            with urllib.request.urlopen(req, timeout=90) as r:
+                data = json.loads(r.read())
+            if isinstance(data, list):
+                return data[0].get("generated_text", str(data))
+            return str(data)
+
+        # ── 5. OPENAI-COMPATIBLE (Groq, OpenRouter, Mistral, Cerebras, Zhipu, GitHub) ──
+        elif ptype == "openai_compat":
+            import urllib.request
+            base_url = cfg.get("base_url", "")
+            messages = []
+            if image_bytes and cfg.get("vision"):
+                messages.append({
+                    "role": "user",
+                    "content": [
+                        {"type": "image_url",
+                         "image_url": {"url": f"data:image/jpeg;base64,"
+                                              f"{base64.b64encode(image_bytes).decode()}"}},
+                        {"type": "text", "text": prompt_text}
+                    ]
+                })
+            else:
+                messages.append({"role": "user", "content": prompt_text})
+            body = {"model": model, "messages": messages,
+                    "max_tokens": 2000, "temperature": 0.3}
+            if json_mode:
+                body["response_format"] = {"type": "json_object"}
+            payload = json.dumps(body).encode()
+            headers = {"Content-Type": "application/json",
+                       "Authorization": f"Bearer {api_key}"}
+            # OpenRouter nécessite un referer
+            if "openrouter" in base_url:
+                headers["HTTP-Referer"] = "https://apitrack.pro"
+                headers["X-Title"] = "ApiTrack Pro"
+            req = urllib.request.Request(f"{base_url}/chat/completions",
+                                         data=payload, headers=headers)
+            with urllib.request.urlopen(req, timeout=90) as r:
+                data = json.loads(r.read())
+            return data["choices"][0]["message"]["content"]
+
+        return None
+
+    except Exception as e:
+        return f"❌ Erreur {provider_name} : {e}"
+
+
+def ia_call_json(prompt_text, image_bytes=None):
+    """Appel IA avec retour JSON parsé."""
+    result = ia_call(prompt_text, image_bytes, json_mode=True)
+    if not result or result.startswith("❌"):
+        return {"error": result or "Pas de réponse"}
+    text = result.strip()
+    # Nettoyage markdown
+    if "```" in text:
+        parts = text.split("```")
+        for p in parts:
+            if p.startswith("json"):
+                text = p[4:].strip()
+                break
+            elif p.strip().startswith("{"):
+                text = p.strip()
+                break
+    try:
+        return json.loads(text)
+    except Exception:
+        # Tentative extraction JSON dans le texte
+        import re
+        m = re.search(r'\{.*\}', text, re.DOTALL)
+        if m:
+            try:
+                return json.loads(m.group())
+            except Exception:
+                pass
+        return {"error": f"JSON invalide : {text[:200]}"}
+
+
+def ia_analyser_morphometrie(aile, largeur, cubital, glossa, tomentum, pigmentation,
+                              race_algo, confiance, image_bytes=None):
+    """Analyse morphométrique via le fournisseur IA actif."""
+    pname = get_active_provider()
+    model = get_active_model()
+    prompt = f"""Tu es expert apicole et morphométriste spécialisé dans la classification des races d'abeilles selon Ruttner (1988).
+
+Voici les mesures morphométriques relevées sur une abeille :
+- Longueur aile antérieure : {aile} mm
+- Largeur aile : {largeur} mm
+- Indice cubital : {cubital}
+- Longueur glossa : {glossa} mm
+- Tomentum (densité poils thorax 0-3) : {tomentum}
+- Pigmentation scutellum : {pigmentation}
+
+L'algorithme local a classifié : **{race_algo}** avec {confiance}% de confiance.
+Modèle IA utilisé : {pname} / {model}
+
+Effectue une analyse morphométrique complète en français selon ce plan :
+
+## 1. Validation de la classification
+- Confirme ou nuance la race {race_algo} selon les valeurs Ruttner 1988
+- Ton niveau de confiance personnel (0-100%)
+- Comparaison avec A.m. intermissa, sahariensis, ligustica, carnica
+
+## 2. Scores de production (note /5 ⭐)
+- 🍯 **Miel** : X/5 — justification (rendement kg/ruche/an estimé)
+- 🌼 **Pollen** : X/5 — justification
+- 🟤 **Propolis** : X/5 — justification
+- 👑 **Gelée royale** : X/5 — justification (taux 10-HDA estimé)
+
+## 3. Caractéristiques comportementales
+Douceur, essaimage, économie hivernale, résistance varroa (2-3 lignes)
+
+## 4. Recommandations stratégiques (3 actions concrètes)
+- Action 1 :
+- Action 2 :
+- Action 3 :
+
+## 5. Compatibilité avec l'environnement nord-africain (Algérie/Maroc/Tunisie)
+Court paragraphe sur l'adaptation de cette race au climat méditerranéen/saharien.
+
+Sois précis, concis, vocabulaire apicole professionnel."""
+    return ia_call(prompt, image_bytes)
+
+
+def ia_analyser_environnement(description_env, latitude=None, longitude=None,
+                               saison="printemps", image_bytes=None):
+    """Analyse environnementale mellifère via le fournisseur IA actif."""
+    pname = get_active_provider()
+    coords_str = f"Coordonnées : {latitude:.4f}°N, {longitude:.4f}°E" if latitude else ""
+    prompt = f"""Tu es expert apicole senior, botaniste et écologue spécialisé dans l'analyse des environnements mellifères méditerranéens et nord-africains.
+
+Zone à analyser :
+{coords_str}
+Saison : {saison}
+Description : {description_env}
+IA utilisée : {pname}
+
+Effectue une analyse environnementale mellifère COMPLÈTE en français :
+
+## 🌿 1. Flore identifiée et potentiel mellifère
+Pour chaque espèce présente ou probable :
+| Espèce | Source | Période | Qualité |
+(Nectar / Pollen / Résine / Mixte — Excellente/Bonne/Moyenne/Faible)
+
+## 📊 2. Scores de production (note /5 ⭐)
+- 🍯 **MIEL** : X/5 — (type floral, saveur probable, rendement estimé kg/ruche/an, période)
+- 🌼 **POLLEN** : X/5 — (diversité, richesse protéique %, couleurs)
+- 🟤 **PROPOLIS** : X/5 — (espèces résineuses, qualité antibactérienne estimée)
+- 👑 **GELÉE ROYALE** : X/5 — (disponibilité protéines+sucres, taux 10-HDA estimé)
+
+## 🌡️ 3. Analyse microclimatique
+- Exposition, altitude, humidité, vent, eau permanente
+- Risques : pesticides, sécheresse, concurrence, prédateurs
+- Points forts spécifiques à cette zone
+
+## 🎯 4. Verdict global
+- Potentiel global : [Faible/Modéré/Élevé/Exceptionnel]
+- Indice mellifère : X/10
+- Production principale recommandée : [Miel/Pollen/Propolis/Gelée royale/Mixte]
+- Capacité de charge : X ruches/100 ha
+
+## 🐝 5. Plan d'action (5 recommandations)
+- Race d'abeille la plus adaptée à cette zone
+- Mois optimal d'installation des ruches
+- Période de récolte recommandée
+- 3 améliorations pour maximiser la production
+
+Données chiffrées obligatoires. Références botaniques locales nord-africaines si possible."""
+    return ia_call(prompt, image_bytes)
+
+
+def ia_analyser_zone_carto(nom_zone, flore, superficie, ndvi, potentiel, type_zone,
+                            latitude=None, longitude=None):
+    """Analyse JSON d'une zone cartographiée via le fournisseur IA actif."""
+    coords_str = f"à {latitude:.4f}°N, {longitude:.4f}°E" if latitude else ""
+    prompt = f"""Tu es expert apicole et écologue. Analyse cette zone mellifère cartographiée.
+
+Zone : {nom_zone} {coords_str}
+Type : {type_zone} | Flore : {flore} | Superficie : {superficie} ha
+NDVI : {ndvi} (0=sol nu → 1=végétation dense) | Potentiel estimé : {potentiel}
+
+Réponds UNIQUEMENT avec un objet JSON valide (pas de texte avant/après, pas de markdown) :
+{{
+  "diagnostic": {{"potentiel_global":"Élevé","indice_mellifere":8,"capacite_ruches":12,"saison_pic":"Avril-Juin"}},
+  "scores": {{
+    "miel":{{"note":4,"etoiles":"⭐⭐⭐⭐","detail":"Nectar abondant — jujubier dominant"}},
+    "pollen":{{"note":3,"etoiles":"⭐⭐⭐","detail":"Diversité florale correcte"}},
+    "propolis":{{"note":2,"etoiles":"⭐⭐","detail":"Quelques résines disponibles"}},
+    "gelee_royale":{{"note":3,"etoiles":"⭐⭐⭐","detail":"Protéines disponibles printemps"}}
+  }},
+  "flore_identifiee":[
+    {{"espece":"Ziziphus lotus","nectar":true,"pollen":true,"resine":false,"periode":"Avr-Juin","qualite":"Excellente"}}
+  ],
+  "risques":["Sécheresse estivale","Faible diversité florale en été"],
+  "recommandations":["Installer 8-12 ruches en mars","Récolter miel en juin","Prévoir nourrissement été"],
+  "race_adaptee":"intermissa",
+  "resume":"Zone mellifère de haute valeur — potentiel miel jujubier exceptionnel au printemps."
+}}"""
+    return ia_call_json(prompt)
+
+
+def afficher_resultat_ia(texte, titre="🤖 Analyse IA"):
+    """Affiche le résultat IA dans un bloc stylisé avec badge fournisseur."""
+    provider = get_active_provider()
+    model    = get_active_model()
+    st.markdown(f"""
+    <div style='background:linear-gradient(135deg,#FFF8E8,#FFFDF7);
+                border:1px solid #C8820A;border-left:4px solid #C8820A;
+                border-radius:10px;padding:20px;margin:16px 0;'>
+        <div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:12px'>
+            <div style='font-family:Playfair Display,serif;font-size:1rem;font-weight:600;color:#C8820A'>
+                🤖 {titre}
+            </div>
+            <div style='font-size:.7rem;background:#FFF3D0;color:#8B7355;border:1px solid #E8D9B0;
+                        border-radius:20px;padding:2px 10px'>{provider} · {model}</div>
+        </div>
+        <div style='font-size:.88rem;color:#1a1209;line-height:1.7'>
+    """, unsafe_allow_html=True)
+    st.markdown(texte)
+    st.markdown("</div></div>", unsafe_allow_html=True)
+
+
+def widget_ia_selector():
+    """
+    Widget sélecteur de fournisseur IA — affiché en haut des pages IA.
+    Retourne True si une clé est configurée pour le fournisseur actif.
+    """
+    provider_names = list(IA_PROVIDERS.keys())
+    current = get_active_provider()
+    idx = provider_names.index(current) if current in provider_names else 0
+
+    with st.expander("🤖 Choisir le fournisseur IA", expanded=False):
+        col1, col2 = st.columns([1.5, 1])
+        with col1:
+            sel = st.selectbox("Fournisseur IA gratuit", provider_names,
+                                index=idx, key="ia_provider_select")
+        cfg = IA_PROVIDERS[sel]
+        with col2:
+            models = cfg["models"]
+            current_model = get_setting("ia_model", cfg["default"])
+            idx_m = models.index(current_model) if current_model in models else 0
+            sel_model = st.selectbox("Modèle", models, index=idx_m, key="ia_model_select")
+
+        st.markdown(f"""
+        <div style='font-size:.78rem;color:#8B7355;background:#FFF8E8;border-radius:6px;
+                    padding:8px 12px;margin:6px 0;line-height:1.6'>
+        📊 <b>Quota :</b> {cfg['quota']}<br>
+        🖼️ <b>Vision (photo) :</b> {'✅ Oui' if cfg['vision'] else '❌ Texte seul'}<br>
+        🔑 <b>Clé :</b> <a href='{cfg['url']}' target='_blank'>{cfg['url']}</a>
+        </div>
+        """, unsafe_allow_html=True)
+
+        api_key = get_api_key_for_provider(sel)
+        new_key = st.text_input(
+            f"Clé API {sel.split('(')[0].strip()}",
+            value=api_key, type="password",
+            placeholder=cfg.get("prefix", "") + "...",
+            key=f"key_input_{sel}"
+        )
+
+        col_s1, col_s2 = st.columns(2)
+        if col_s1.button("💾 Sauvegarder & Activer", key="save_ia_provider"):
+            conn = get_db()
+            if new_key:
+                conn.execute("INSERT OR REPLACE INTO settings VALUES (?,?)",
+                             (cfg["key"], new_key))
+            conn.execute("INSERT OR REPLACE INTO settings VALUES ('ia_provider',?)", (sel,))
+            conn.execute("INSERT OR REPLACE INTO settings VALUES ('ia_model',?)", (sel_model,))
+            conn.commit()
+            conn.close()
+            log_action("Fournisseur IA changé", f"{sel} / {sel_model}")
+            st.success(f"✅ {sel} activé — modèle {sel_model}")
+            st.rerun()
+        if col_s2.button("🔬 Tester la connexion", key="test_ia_provider"):
+            # Sauvegarde temporaire pour le test
+            conn = get_db()
+            if new_key:
+                conn.execute("INSERT OR REPLACE INTO settings VALUES (?,?)", (cfg["key"], new_key))
+            conn.execute("INSERT OR REPLACE INTO settings VALUES ('ia_provider',?)", (sel,))
+            conn.execute("INSERT OR REPLACE INTO settings VALUES ('ia_model',?)", (sel_model,))
+            conn.commit()
+            conn.close()
+            with st.spinner("Test en cours..."):
+                r = ia_call("Réponds uniquement : 'ApiTrack Pro IA OK' en français.")
+            if r and "OK" in r:
+                st.success(f"✅ {r.strip()}")
+            elif r:
+                st.warning(f"Réponse : {r[:200]}")
+            else:
+                st.error("❌ Pas de réponse. Vérifiez la clé API.")
+
+    # Statut compact
+    api_key = get_api_key_for_provider(get_active_provider())
+    prov    = get_active_provider()
+    mod     = get_active_model()
+    if api_key:
+        st.markdown(f"<div style='font-size:.75rem;color:#2E7D32;margin-bottom:8px'>"
+                    f"✅ IA active : <b>{prov}</b> · <code>{mod}</code></div>",
+                    unsafe_allow_html=True)
+        return True
+    else:
+        st.warning(f"⚠️ Configurez une clé API pour **{prov}** (voir le sélecteur ci-dessus).")
+        return False
+
+
+def get_anthropic_client():
+    """Compatibilité — retourne le client Anthropic si actif."""
+    if "Anthropic" in get_active_provider() and ANTHROPIC_OK:
+        key = get_api_key_for_provider(get_active_provider())
+        return anthropic.Anthropic(api_key=key) if key else None
+    return None
+
+
+def ia_analyser_morphometrie(aile, largeur, cubital, glossa, tomentum, pigmentation,
+                              race_algo, confiance, image_bytes=None):
+    """
+    Appel IA Claude pour analyse morphométrique approfondie.
+    Optionnellement avec photo macro de l'abeille.
+    """
+    client = get_anthropic_client()
+    if not client:
+        return None
+
+    prompt = f"""Tu es expert apicole et morphométriste spécialisé dans la classification des races d'abeilles selon Ruttner (1988).
+
+Voici les mesures morphométriques relevées sur une abeille :
+- Longueur aile antérieure : {aile} mm
+- Largeur aile : {largeur} mm  
+- Indice cubital : {cubital}
+- Longueur glossa : {glossa} mm
+- Tomentum (densité poils thorax 0-3) : {tomentum}
+- Pigmentation scutellum : {pigmentation}
+
+L'algorithme local a classifié : **{race_algo}** avec {confiance}% de confiance.
+
+Effectue une analyse morphométrique complète et réponds en français avec ce plan structuré :
+
+## 1. Validation de la classification
+- Confirme ou nuance la race {race_algo} en t'appuyant sur les valeurs de référence Ruttner 1988
+- Donne ton niveau de confiance personnel (0-100%)
+- Compare avec les valeurs typiques pour : A.m. intermissa, sahariensis, ligustica, carnica
+
+## 2. Scores de production pour chaque type (note /5 🌟)
+Pour la race identifiée, évalue précisément :
+- 🍯 **Miel** : X/5 — (justification courte)
+- 🌼 **Pollen** : X/5 — (justification courte)
+- 🟤 **Propolis** : X/5 — (justification courte)
+- 👑 **Gelée royale** : X/5 — (justification courte)
+
+## 3. Caractéristiques comportementales clés
+- Douceur, essaimage, économie hivernale, résistance maladies (2-3 lignes)
+
+## 4. Recommandations stratégiques
+- 2-3 recommandations concrètes pour l'apiculteur (renouvellement reine, sélection, croisements)
+
+## 5. Plan d'action (3 étapes prioritaires)
+- Action 1 : ...
+- Action 2 : ...
+- Action 3 : ...
+
+Sois précis, concis et pratique. Vocabulaire apicole professionnel."""
+
+    content = [{"type": "text", "text": prompt}]
+    if image_bytes:
+        content.insert(0, {
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": "image/jpeg",
+                "data": base64.b64encode(image_bytes).decode("utf-8"),
+            }
+        })
+        content.append({"type": "text", "text": "Analyse également la photo macro fournie pour affiner la classification morphométrique."})
+
+    try:
+        response = client.messages.create(
+            model="claude-opus-4-5",
+            max_tokens=1500,
+            messages=[{"role": "user", "content": content}]
+        )
+        return response.content[0].text
+    except Exception as e:
+        return f"Erreur IA : {e}"
+
+
+def ia_analyser_environnement(description_env, latitude=None, longitude=None,
+                               saison="printemps", image_bytes=None):
+    """
+    Appel IA Claude pour analyse environnementale mellifère.
+    Évalue le potentiel miel/pollen/propolis/gelée royale sur une zone.
+    """
+    client = get_anthropic_client()
+    if not client:
+        return None
+
+    coords_str = f"Coordonnées : {latitude}°N, {longitude}°E" if latitude else ""
+    prompt = f"""Tu es expert apicole senior, botaniste et écologue spécialisé dans l'analyse des environnements mellifères.
+
+Zone à analyser :
+{coords_str}
+Saison : {saison}
+Description de l'environnement : {description_env}
+
+Effectue une analyse environnementale mellifère complète et réponds en français avec ce plan :
+
+## 🌿 1. Analyse de la flore identifiée
+Pour chaque espèce mentionnée ou probable dans cette zone :
+- Nom scientifique et commun
+- Source : Nectar / Pollen / Résine (propolis) / Mixte
+- Période de floraison
+- Qualité mellifère (Excellente / Bonne / Moyenne / Faible)
+
+## 📊 2. Scores de potentiel de production (note /5 🌟)
+Évalue précisément le potentiel de cette zone pour :
+- 🍯 **Miel** : X/5 — (type, saveur probable, rendement estimé kg/ruche/an)
+- 🌼 **Pollen** : X/5 — (diversité, richesse protéique)
+- 🟤 **Propolis** : X/5 — (espèces résineuses présentes)
+- 👑 **Gelée royale** : X/5 — (disponibilité protéines + sucres)
+
+## 🌡️ 3. Analyse microclimatique
+- Exposition, humidité, vent, eau disponible
+- Risques (pesticides, concurrence, sécheresse)
+- Avantages spécifiques à cette zone
+
+## 🎯 4. Verdict global
+- Potentiel global : [Faible / Modéré / Élevé / Exceptionnel]
+- Indice mellifère : X/10
+- Production principale recommandée : [Miel / Pollen / Propolis / Gelée royale / Mixte]
+- Nombre de ruches recommandé pour cette zone (capacité de charge)
+
+## 🐝 5. Recommandations pratiques
+- Race d'abeille la plus adaptée à cette zone
+- Période optimale de butinage
+- 3 actions concrètes pour maximiser la production
+
+Sois précis avec des données chiffrées quand c'est possible."""
+
+    content = [{"type": "text", "text": prompt}]
+    if image_bytes:
+        content.insert(0, {
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": "image/jpeg",
+                "data": base64.b64encode(image_bytes).decode("utf-8"),
+            }
+        })
+        content.append({"type": "text",
+                         "text": "Analyse la photo/vidéo de l'environnement fournie pour identifier la flore visible et affiner ton diagnostic."})
+
+    try:
+        response = client.messages.create(
+            model="claude-opus-4-5",
+            max_tokens=1800,
+            messages=[{"role": "user", "content": content}]
+        )
+        return response.content[0].text
+    except Exception as e:
+        return f"Erreur IA : {e}"
+
+
+def ia_analyser_zone_carto(nom_zone, flore, superficie, ndvi, potentiel, type_zone,
+                            latitude=None, longitude=None):
+    """
+    Appel IA Claude pour analyse IA d'une zone cartographiée.
+    Retourne un diagnostic JSON structuré + recommandations.
+    """
+    client = get_anthropic_client()
+    if not client:
+        return None
+
+    coords_str = f"à {latitude}°N, {longitude}°E" if latitude else ""
+    prompt = f"""Tu es expert apicole et écologue. Analyse cette zone mellifère cartographiée.
+
+Zone : **{nom_zone}** {coords_str}
+- Type : {type_zone}
+- Flore principale : {flore}
+- Superficie : {superficie} ha
+- NDVI mesuré : {ndvi} (0=sol nu, 1=végétation dense)
+- Potentiel estimé : {potentiel}
+
+Réponds UNIQUEMENT avec un objet JSON valide (pas de markdown, pas de texte avant/après) :
+
+{{
+  "diagnostic": {{
+    "potentiel_global": "Élevé",
+    "indice_mellifere": 8,
+    "capacite_ruches": 12,
+    "saison_pic": "Avril-Juin"
+  }},
+  "scores": {{
+    "miel": {{"note": 4, "etoiles": "⭐⭐⭐⭐", "detail": "Nectar abondant grâce à..."}},
+    "pollen": {{"note": 3, "etoiles": "⭐⭐⭐", "detail": "Diversité florale..."}},
+    "propolis": {{"note": 2, "etoiles": "⭐⭐", "detail": "Présence résines..."}},
+    "gelee_royale": {{"note": 3, "etoiles": "⭐⭐⭐", "detail": "Protéines disponibles..."}}
+  }},
+  "flore_identifiee": [
+    {{"espece": "Ziziphus lotus", "nectar": true, "pollen": true, "resine": false, "periode": "Avr-Juin", "qualite": "Excellente"}},
+    {{"espece": "...", "nectar": true, "pollen": false, "resine": false, "periode": "...", "qualite": "..."}}
+  ],
+  "risques": ["Risque 1...", "Risque 2..."],
+  "recommandations": ["Action 1...", "Action 2...", "Action 3..."],
+  "race_adaptee": "intermissa",
+  "resume": "Phrase de synthèse de 1-2 lignes sur cette zone."
+}}"""
+
+    try:
+        response = client.messages.create(
+            model="claude-opus-4-5",
+            max_tokens=1200,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        text = response.content[0].text.strip()
+        # Nettoyage éventuel
+        if text.startswith("```"):
+            text = text.split("```")[1]
+            if text.startswith("json"):
+                text = text[4:]
+        return json.loads(text)
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def afficher_resultat_ia_zone(texte, titre="🤖 Analyse IA"):
+    """Alias pour compatibilité."""
+    afficher_resultat_ia(texte, titre)
+
+
+def widget_cle_api():
+    """Alias vers le nouveau sélecteur multi-fournisseurs."""
+    return widget_ia_selector()
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# SIDEBAR
+# ════════════════════════════════════════════════════════════════════════════
+def sidebar():
+    with st.sidebar:
+        st.markdown("""
+        <div style='padding:8px 0 16px;border-bottom:1px solid #3d2a0e;margin-bottom:12px'>
+            <div style='font-size:1.6rem;margin-bottom:4px'>🐝</div>
+            <div style='font-family:Playfair Display,serif;color:#F5C842;font-size:1.1rem;font-weight:600'>ApiTrack Pro</div>
+            <div style='font-size:.65rem;color:#5a4228;text-transform:uppercase;letter-spacing:.1em'>Gestion Apicole</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        rucher_nom = get_setting("rucher_nom", "Mon Rucher")
+        st.markdown(f"<div style='font-size:.75rem;color:#7a5c3a;margin-bottom:12px'>📍 {rucher_nom}</div>", unsafe_allow_html=True)
+
+        pages = {
+            "🏠 Dashboard": "dashboard",
+            "🐝 Mes ruches": "ruches",
+            "🔍 Inspections": "inspections",
+            "💊 Traitements": "traitements",
+            "🍯 Productions": "productions",
+            "🧬 Morphométrie IA": "morpho",
+            "🗺️ Cartographie": "carto",
+            "☀️ Météo & Miellée": "meteo",
+            "📊 Génétique": "genetique",
+            "🌿 Flore mellifère": "flore",
+            "⚠️ Alertes": "alertes",
+            "📋 Journal": "journal",
+            "⚙️ Administration": "admin",
+        }
+
+        if "page" not in st.session_state:
+            st.session_state.page = "dashboard"
+
+        for label, key in pages.items():
+            active = st.session_state.page == key
+            bg = "rgba(200,130,10,.18)" if active else "transparent"
+            border = "#C8820A" if active else "transparent"
+            color = "#F5C842" if active else "#b8956a"
+            if st.sidebar.button(label, key=f"nav_{key}", use_container_width=True):
+                st.session_state.page = key
+                st.rerun()
+
+        st.sidebar.markdown("<hr style='border-color:#3d2a0e;margin:12px 0'>", unsafe_allow_html=True)
+        st.sidebar.markdown(f"<div style='font-size:.75rem;color:#7a5c3a'>👤 {st.session_state.get('username','admin')}</div>", unsafe_allow_html=True)
+        if st.sidebar.button("🚪 Déconnexion", use_container_width=True):
+            log_action("Déconnexion", f"Utilisateur {st.session_state.get('username')} déconnecté")
+            st.session_state.logged_in = False
+            st.rerun()
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# PAGE : DASHBOARD
+# ════════════════════════════════════════════════════════════════════════════
+def page_dashboard():
+    st.markdown("## 🏠 Tableau de bord")
+    rucher = get_setting("rucher_nom", "Mon Rucher")
+    localisation = get_setting("localisation", "")
+    st.markdown(f"<p style='color:#8B7355;margin-top:-10px'>Saison printanière 2025 · {rucher} · {localisation}</p>", unsafe_allow_html=True)
+
+    conn = get_db()
+    nb_ruches = conn.execute("SELECT COUNT(*) FROM ruches WHERE statut='actif'").fetchone()[0]
+    total_miel = conn.execute("SELECT COALESCE(SUM(quantite_kg),0) FROM recoltes WHERE type_produit='miel'").fetchone()[0]
+    nb_insp = conn.execute("SELECT COUNT(*) FROM inspections WHERE date_inspection >= date('now','-30 days')").fetchone()[0]
+    critiques = conn.execute("SELECT COUNT(*) FROM inspections WHERE varroa_pct >= 3.0 AND date_inspection >= date('now','-7 days')").fetchone()[0]
+
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("🐝 Ruches actives", nb_ruches, "+3 ce mois")
+    col2.metric("🍯 Miel récolté (kg)", f"{total_miel:.0f}", "+18% vs 2024")
+    col3.metric("🔍 Inspections (30j)", nb_insp, "Cadence correcte")
+    col4.metric("⚠️ Varroa critique", critiques, "Intervention requise" if critiques else "RAS", delta_color="inverse")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    col_a, col_b = st.columns(2)
+
+    with col_a:
+        st.markdown("### 📈 Production mensuelle (kg)")
+        df_prod = pd.read_sql("""
+            SELECT strftime('%Y-%m', date_recolte) as mois,
+                   type_produit,
+                   SUM(quantite_kg) as total
+            FROM recoltes
+            GROUP BY mois, type_produit
+            ORDER BY mois
+        """, conn)
+        if not df_prod.empty:
+            fig = px.bar(df_prod, x="mois", y="total", color="type_produit",
+                         color_discrete_map={"miel":"#C8820A","pollen":"#F5C842","gelée royale":"#8B7355"},
+                         template="plotly_white")
+            fig.update_layout(height=280, margin=dict(t=10,b=10,l=0,r=0),
+                              paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                              legend_title_text="", showlegend=True)
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Aucune donnée de production.")
+
+    with col_b:
+        st.markdown("### 🐝 État des ruches")
+        df_ruches = pd.read_sql("""
+            SELECT r.nom, r.race,
+                   COALESCE(i.varroa_pct, 0) as varroa,
+                   COALESCE(i.nb_cadres, 0) as cadres,
+                   COALESCE(i.poids_kg, 0) as poids
+            FROM ruches r
+            LEFT JOIN inspections i ON i.ruche_id = r.id
+            AND i.date_inspection = (SELECT MAX(ii.date_inspection) FROM inspections ii WHERE ii.ruche_id = r.id)
+            WHERE r.statut='actif'
+            ORDER BY varroa DESC
+            LIMIT 6
+        """, conn)
+        if not df_ruches.empty:
+            df_ruches["Statut"] = df_ruches["varroa"].apply(status_badge)
+            df_ruches.columns = ["Ruche","Race","Varroa%","Cadres","Poids(kg)","Statut"]
+            st.dataframe(df_ruches, use_container_width=True, hide_index=True)
+
+    # Alertes rapides
+    st.markdown("### ⚠️ Alertes actives")
+    df_alertes = pd.read_sql("""
+        SELECT r.nom, i.varroa_pct, i.date_inspection, i.notes
+        FROM inspections i
+        JOIN ruches r ON r.id = i.ruche_id
+        WHERE i.varroa_pct >= 2.0
+        AND i.date_inspection >= date('now','-7 days')
+        ORDER BY i.varroa_pct DESC
+    """, conn)
+    conn.close()
+
+    if not df_alertes.empty:
+        for _, row in df_alertes.iterrows():
+            lvl = "🔴" if row["varroa_pct"] >= 3.0 else "🟡"
+            seuil = "CRITIQUE (>3%)" if row["varroa_pct"] >= 3.0 else "ATTENTION (>2%)"
+            st.warning(f"{lvl} **{row['nom']}** — Varroa **{row['varroa_pct']}%** — {seuil} · {row['date_inspection']}")
+    else:
+        st.success("✅ Aucune alerte varroa critique en cours.")
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# PAGE : GESTION DES RUCHES
+# ════════════════════════════════════════════════════════════════════════════
+def page_ruches():
+    st.markdown("## 🐝 Gestion des ruches")
+
+    conn = get_db()
+    df = pd.read_sql("""
+        SELECT r.id, r.nom, r.race, r.date_installation, r.localisation, r.statut,
+               COALESCE(i.varroa_pct, '-') as derniere_varroa,
+               COALESCE(i.nb_cadres, '-') as cadres,
+               COALESCE(i.poids_kg, '-') as poids_kg,
+               i.date_inspection as derniere_inspection
+        FROM ruches r
+        LEFT JOIN inspections i ON i.ruche_id = r.id
+        AND i.date_inspection = (SELECT MAX(ii.date_inspection) FROM inspections ii WHERE ii.ruche_id = r.id)
+        ORDER BY r.id
+    """, conn)
+
+    tab1, tab2 = st.tabs(["📋 Liste des ruches", "➕ Ajouter une ruche"])
+
+    with tab1:
+        if not df.empty:
+            st.dataframe(df, use_container_width=True, hide_index=True)
+            csv = df.to_csv(index=False).encode("utf-8")
+            st.download_button("⬇️ Exporter CSV", csv, "ruches.csv", "text/csv")
+
+        st.markdown("### 🗑️ Supprimer une ruche")
+        ruche_ids = conn.execute("SELECT id, nom FROM ruches").fetchall()
+        if ruche_ids:
+            options = {f"R{r[0]:02d} — {r[1]}": r[0] for r in ruche_ids}
+            selected = st.selectbox("Choisir la ruche à supprimer", options.keys())
+            if st.button("⚠️ Supprimer définitivement", type="secondary"):
+                rid = options[selected]
+                conn.execute("DELETE FROM ruches WHERE id=?", (rid,))
+                conn.commit()
+                log_action("Suppression ruche", f"Ruche {selected} supprimée")
+                st.success(f"Ruche {selected} supprimée.")
+                st.rerun()
+
+    with tab2:
+        with st.form("add_ruche"):
+            st.markdown("**Nouvelle ruche**")
+            col1, col2 = st.columns(2)
+            nom = col1.text_input("Nom / Reine*")
+            race = col2.selectbox("Race", ["intermissa", "sahariensis", "ligustica", "carnica", "hybride"])
+            date_inst = col1.date_input("Date d'installation", datetime.date.today())
+            localisation = col2.text_input("Localisation")
+            col3, col4 = st.columns(2)
+            lat = col3.number_input("Latitude", value=34.88, format="%.4f")
+            lon = col4.number_input("Longitude", value=1.32, format="%.4f")
+            notes = st.text_area("Notes")
+            submitted = st.form_submit_button("✅ Ajouter la ruche")
+
+        if submitted and nom:
+            conn.execute("""
+                INSERT INTO ruches (nom, race, date_installation, localisation, latitude, longitude, notes)
+                VALUES (?,?,?,?,?,?,?)
+            """, (nom, race, str(date_inst), localisation, lat, lon, notes))
+            conn.commit()
+            log_action("Ajout ruche", f"Ruche '{nom}' ({race}) ajoutée")
+            st.success(f"✅ Ruche '{nom}' ajoutée avec succès.")
+            st.rerun()
+
+    conn.close()
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# PAGE : INSPECTIONS
+# ════════════════════════════════════════════════════════════════════════════
+def page_inspections():
+    st.markdown("## 🔍 Inspections")
+    conn = get_db()
+
+    tab1, tab2 = st.tabs(["📋 Historique", "➕ Nouvelle inspection"])
+
+    with tab1:
+        df = pd.read_sql("""
+            SELECT i.id, r.nom as ruche, i.date_inspection, i.poids_kg, i.nb_cadres,
+                   i.varroa_pct, i.reine_vue, i.comportement, i.notes
+            FROM inspections i
+            JOIN ruches r ON r.id = i.ruche_id
+            ORDER BY i.date_inspection DESC
+        """, conn)
+        if not df.empty:
+            df["reine_vue"] = df["reine_vue"].apply(lambda x: "✓" if x else "✗")
+            df["varroa_pct"] = df["varroa_pct"].apply(lambda x: f"{x}%" if x else "-")
+            st.dataframe(df, use_container_width=True, hide_index=True)
+            csv = df.to_csv(index=False).encode("utf-8")
+            st.download_button("⬇️ Exporter CSV", csv, "inspections.csv", "text/csv")
+
+        # Graphique varroa par ruche
+        st.markdown("### 📈 Évolution du varroa")
+        df_v = pd.read_sql("""
+            SELECT r.nom, i.date_inspection, i.varroa_pct
+            FROM inspections i JOIN ruches r ON r.id=i.ruche_id
+            WHERE i.varroa_pct IS NOT NULL
+            ORDER BY i.date_inspection
+        """, conn)
+        if not df_v.empty:
+            fig = px.line(df_v, x="date_inspection", y="varroa_pct", color="nom",
+                          template="plotly_white", markers=True)
+            fig.add_hline(y=2.0, line_dash="dash", line_color="orange", annotation_text="Seuil alerte (2%)")
+            fig.add_hline(y=3.0, line_dash="dash", line_color="red", annotation_text="Seuil critique (3%)")
+            fig.update_layout(height=300, margin=dict(t=10,b=10,l=0,r=0),
+                              paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+            st.plotly_chart(fig, use_container_width=True)
+
+    with tab2:
+        ruches = conn.execute("SELECT id, nom FROM ruches WHERE statut='actif'").fetchall()
+        opts = {r[1]: r[0] for r in ruches}
+
+        with st.form("add_inspection"):
+            col1, col2 = st.columns(2)
+            ruche_sel = col1.selectbox("Ruche*", opts.keys())
+            date_insp = col2.date_input("Date", datetime.date.today())
+            col3, col4, col5 = st.columns(3)
+            poids = col3.number_input("Poids (kg)", 0.0, 80.0, 25.0, 0.1)
+            cadres = col4.number_input("Nb cadres", 0, 20, 10)
+            varroa = col5.number_input("Varroa (%)", 0.0, 20.0, 1.0, 0.1)
+            col6, col7 = st.columns(2)
+            reine = col6.checkbox("Reine vue", value=True)
+            comportement = col7.selectbox("Comportement", ["calme", "nerveuse", "agressive", "très calme"])
+            notes = st.text_area("Notes / Observations")
+            submitted = st.form_submit_button("✅ Enregistrer l'inspection")
+
+        if submitted:
+            rid = opts[ruche_sel]
+            conn.execute("""
+                INSERT INTO inspections (ruche_id,date_inspection,poids_kg,nb_cadres,varroa_pct,reine_vue,comportement,notes)
+                VALUES (?,?,?,?,?,?,?,?)
+            """, (rid, str(date_insp), poids, cadres, varroa, int(reine), comportement, notes))
+            conn.commit()
+            log_action("Inspection enregistrée", f"Ruche {ruche_sel} — varroa {varroa}%")
+            if varroa >= 3.0:
+                st.error(f"⚠️ ALERTE CRITIQUE : Varroa {varroa}% sur {ruche_sel} — Traitement immédiat requis !")
+            elif varroa >= 2.0:
+                st.warning(f"⚠️ Attention : Varroa {varroa}% sur {ruche_sel} — Surveillance renforcée.")
+            else:
+                st.success("✅ Inspection enregistrée.")
+            st.rerun()
+
+    conn.close()
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# PAGE : TRAITEMENTS
+# ════════════════════════════════════════════════════════════════════════════
+def page_traitements():
+    st.markdown("## 💊 Traitements vétérinaires")
+    conn = get_db()
+
+    tab1, tab2 = st.tabs(["📋 En cours & historique", "➕ Nouveau traitement"])
+
+    with tab1:
+        df = pd.read_sql("""
+            SELECT t.id, r.nom as ruche, t.date_debut, t.date_fin, t.produit,
+                   t.pathologie, t.dose, t.duree_jours, t.statut, t.notes
+            FROM traitements t JOIN ruches r ON r.id=t.ruche_id
+            ORDER BY t.date_debut DESC
+        """, conn)
+        if not df.empty:
+            for _, row in df.iterrows():
+                if row["statut"] == "en_cours":
+                    debut = datetime.date.fromisoformat(row["date_debut"])
+                    jours_ecoulés = (datetime.date.today() - debut).days
+                    duree = row["duree_jours"] or 21
+                    progress = min(jours_ecoulés / duree, 1.0)
+                    with st.container():
+                        col1, col2 = st.columns([3, 1])
+                        col1.markdown(f"**{row['ruche']}** — {row['produit']} ({row['pathologie']}) · Dose : {row['dose']}")
+                        col1.progress(progress, text=f"Jour {jours_ecoulés}/{duree}")
+                        col2.markdown(f"<span class='badge-warn'>En cours</span>", unsafe_allow_html=True)
+                    st.markdown("---")
+            st.dataframe(df, use_container_width=True, hide_index=True)
+        else:
+            st.info("Aucun traitement enregistré.")
+
+    with tab2:
+        ruches = conn.execute("SELECT id, nom FROM ruches WHERE statut='actif'").fetchall()
+        opts = {r[1]: r[0] for r in ruches}
+        with st.form("add_traitement"):
+            col1, col2 = st.columns(2)
+            ruche_sel = col1.selectbox("Ruche", opts.keys())
+            produit = col2.text_input("Produit", placeholder="Acide oxalique")
+            col3, col4 = st.columns(2)
+            pathologie = col3.selectbox("Pathologie", ["Varroa", "Loque américaine", "Nosémose", "Foulbrood", "Autre"])
+            dose = col4.text_input("Dose", placeholder="50 ml")
+            col5, col6 = st.columns(2)
+            date_debut = col5.date_input("Date début", datetime.date.today())
+            duree = col6.number_input("Durée (jours)", 1, 90, 21)
+            notes = st.text_area("Notes")
+            submitted = st.form_submit_button("✅ Enregistrer le traitement")
+
+        if submitted and produit:
+            date_fin = date_debut + datetime.timedelta(days=duree)
+            conn.execute("""
+                INSERT INTO traitements (ruche_id,date_debut,date_fin,produit,pathologie,dose,duree_jours,statut,notes)
+                VALUES (?,?,?,?,?,?,?,'en_cours',?)
+            """, (opts[ruche_sel], str(date_debut), str(date_fin), produit, pathologie, dose, duree, notes))
+            conn.commit()
+            log_action("Traitement débuté", f"Ruche {ruche_sel} — {produit} ({pathologie})")
+            st.success("✅ Traitement enregistré.")
+            st.rerun()
+
+    conn.close()
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# PAGE : PRODUCTIONS
+# ════════════════════════════════════════════════════════════════════════════
+def page_productions():
+    st.markdown("## 🍯 Productions")
+    conn = get_db()
+
+    total_miel = conn.execute("SELECT COALESCE(SUM(quantite_kg),0) FROM recoltes WHERE type_produit='miel'").fetchone()[0]
+    total_pollen = conn.execute("SELECT COALESCE(SUM(quantite_kg),0) FROM recoltes WHERE type_produit='pollen'").fetchone()[0]
+    total_gr = conn.execute("SELECT COALESCE(SUM(quantite_kg),0) FROM recoltes WHERE type_produit='gelée royale'").fetchone()[0]
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("🍯 Miel total (kg)", f"{total_miel:.1f}", "Humidité moy. 17.2%")
+    col2.metric("🌼 Pollen (kg)", f"{total_pollen:.1f}", "Qualité A")
+    col3.metric("👑 Gelée royale (kg)", f"{total_gr:.2f}", "10-HDA 2.1%")
+
+    tab1, tab2, tab3 = st.tabs(["🍯 Récoltes", "📊 Graphiques", "➕ Nouvelle récolte"])
+
+    with tab1:
+        df = pd.read_sql("""
+            SELECT rec.id, r.nom as ruche, rec.date_recolte, rec.type_produit,
+                   rec.quantite_kg, rec.humidite_pct, rec.ph, rec.hda_pct, rec.qualite, rec.notes
+            FROM recoltes rec JOIN ruches r ON r.id=rec.ruche_id
+            ORDER BY rec.date_recolte DESC
+        """, conn)
+        if not df.empty:
+            st.dataframe(df, use_container_width=True, hide_index=True)
+            csv = df.to_csv(index=False).encode("utf-8")
+            st.download_button("⬇️ Exporter CSV", csv, "recoltes.csv", "text/csv")
+
+    with tab2:
+        df_g = pd.read_sql("""
+            SELECT strftime('%Y-%m', date_recolte) as mois, type_produit, SUM(quantite_kg) as total
+            FROM recoltes GROUP BY mois, type_produit ORDER BY mois
+        """, conn)
+        if not df_g.empty:
+            fig = px.area(df_g, x="mois", y="total", color="type_produit",
+                          color_discrete_map={"miel":"#C8820A","pollen":"#F5C842","gelée royale":"#8B7355"},
+                          template="plotly_white")
+            fig.update_layout(height=320, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                              margin=dict(t=10,b=10,l=0,r=0))
+            st.plotly_chart(fig, use_container_width=True)
+
+        df_r = pd.read_sql("""
+            SELECT r.nom, SUM(rec.quantite_kg) as total FROM recoltes rec
+            JOIN ruches r ON r.id=rec.ruche_id WHERE rec.type_produit='miel'
+            GROUP BY r.nom ORDER BY total DESC
+        """, conn)
+        if not df_r.empty:
+            fig2 = px.bar(df_r, x="nom", y="total", template="plotly_white",
+                          color_discrete_sequence=["#C8820A"])
+            fig2.update_layout(height=280, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                               margin=dict(t=10,b=10,l=0,r=0), title="Production de miel par ruche (kg)")
+            st.plotly_chart(fig2, use_container_width=True)
+
+    with tab3:
+        ruches = conn.execute("SELECT id, nom FROM ruches WHERE statut='actif'").fetchall()
+        opts = {r[1]: r[0] for r in ruches}
+        with st.form("add_recolte"):
+            col1, col2, col3 = st.columns(3)
+            ruche_sel = col1.selectbox("Ruche", opts.keys())
+            type_prod = col2.selectbox("Produit", ["miel", "pollen", "gelée royale", "propolis"])
+            date_rec = col3.date_input("Date récolte", datetime.date.today())
+            col4, col5 = st.columns(2)
+            quantite = col4.number_input("Quantité (kg)", 0.0, 500.0, 10.0, 0.1)
+            qualite = col5.selectbox("Qualité", ["A+", "A", "B", "C"])
+            col6, col7, col8 = st.columns(3)
+            humidite = col6.number_input("Humidité (%)", 0.0, 30.0, 17.5, 0.1)
+            ph = col7.number_input("pH", 2.0, 7.0, 3.9, 0.1)
+            hda = col8.number_input("10-HDA (%)", 0.0, 5.0, 0.0, 0.1)
+            notes = st.text_area("Notes")
+            submitted = st.form_submit_button("✅ Enregistrer la récolte")
+
+        if submitted:
+            conn.execute("""
+                INSERT INTO recoltes (ruche_id,date_recolte,type_produit,quantite_kg,humidite_pct,ph,hda_pct,qualite,notes)
+                VALUES (?,?,?,?,?,?,?,?,?)
+            """, (opts[ruche_sel], str(date_rec), type_prod, quantite,
+                  humidite if humidite > 0 else None,
+                  ph if ph > 0 else None,
+                  hda if hda > 0 else None, qualite, notes))
+            conn.commit()
+            log_action("Récolte enregistrée", f"{quantite} kg de {type_prod} — ruche {ruche_sel}")
+            st.success(f"✅ {quantite} kg de {type_prod} enregistrés.")
+            st.rerun()
+
+    conn.close()
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# PAGE : MORPHOMÉTRIE IA
+# ════════════════════════════════════════════════════════════════════════════
+RUTTNER_REF = {
+    "intermissa":   {"aile": (8.9, 9.4), "cubital": (2.0, 2.8), "glossa": (5.8, 6.3)},
+    "sahariensis":  {"aile": (9.0, 9.5), "cubital": (1.9, 2.5), "glossa": (6.0, 6.5)},
+    "ligustica":    {"aile": (9.2, 9.8), "cubital": (2.5, 3.2), "glossa": (6.3, 6.8)},
+    "carnica":      {"aile": (9.3, 9.9), "cubital": (2.2, 3.0), "glossa": (6.4, 7.0)},
+    "hybride":      {"aile": (8.5, 9.5), "cubital": (1.8, 3.5), "glossa": (5.5, 6.8)},
+}
+
+def classify_race(aile, cubital, glossa):
+    """Classification simplifiée selon Ruttner 1988."""
+    scores = {}
+    for race, ref in RUTTNER_REF.items():
+        s = 0
+        for val, (lo, hi) in [(aile, ref["aile"]), (cubital, ref["cubital"]), (glossa, ref["glossa"])]:
+            if val is None:
+                s += 0.5
+            elif lo <= val <= hi:
+                s += 1.0
+            else:
+                dist = min(abs(val - lo), abs(val - hi))
+                s += max(0, 1.0 - dist * 0.5)
+        scores[race] = s
+    total = sum(scores.values()) or 1
+    return {r: round(v / total * 100) for r, v in scores.items()}
+
+
+def page_morpho():
+    st.markdown("## 🧬 Morphométrie IA — Classification raciale")
+    st.markdown("<p style='color:#8B7355'>Mesures morphométriques + analyse Claude IA (Ruttner 1988)</p>",
+                unsafe_allow_html=True)
+
+    # ── Clé API ──────────────────────────────────────────────────────────────
+    ia_active = widget_cle_api()
+
+    conn = get_db()
+    ruches = conn.execute("SELECT id, nom FROM ruches WHERE statut='actif'").fetchall()
+    opts = {r[1]: r[0] for r in ruches}
+
+    specialisations = {
+        "intermissa": ["Production de miel", "Propolis abondante", "Résistance chaleur", "Adaptation locale"],
+        "sahariensis": ["Butinage intense", "Résistance extrême chaleur", "Économie eau"],
+        "ligustica": ["Production intensive miel", "Faible propolis", "Docilité"],
+        "carnica": ["Économie hivernale", "Butinage précoce", "Faible essaimage"],
+        "hybride": ["Variable selon parentaux", "Évaluation approfondie requise"],
+    }
+
+    tab1, tab2 = st.tabs(["🔬 Analyse + IA", "📜 Historique"])
+
+    with tab1:
+        col1, col2 = st.columns([1, 1.2])
+
+        with col1:
+            st.markdown("### 📐 Mesures morphométriques")
+            ruche_sel = st.selectbox("Ruche analysée", opts.keys())
+            aile    = st.number_input("Longueur aile antérieure (mm)", 7.0, 12.0, 9.2, 0.1)
+            largeur = st.number_input("Largeur aile (mm)", 2.0, 5.0, 3.1, 0.1)
+            cubital = st.number_input("Indice cubital", 1.0, 5.0, 2.3, 0.1,
+                                      help="Rapport distances nervures cubitales a/b ÷ b/c")
+            glossa  = st.number_input("Longueur glossa (mm)", 4.0, 8.0, 6.1, 0.1)
+            tomentum    = st.slider("Tomentum (densité poils thorax 0–3)", 0, 3, 2)
+            pigmentation = st.selectbox("Pigmentation scutellum",
+                                        ["Noir", "Brun foncé", "Brun clair", "Jaune"])
+            notes = st.text_area("Notes / Observations")
+
+            st.markdown("### 📷 Photo macro (optionnel)")
+            st.markdown("<small style='color:#8B7355'>Téléversez une photo macro de l'aile ou de l'abeille pour affiner l'analyse IA</small>",
+                        unsafe_allow_html=True)
+            img_file = st.file_uploader("Photo macro abeille", type=["jpg","jpeg","png","webp"],
+                                        key="morpho_img")
+
+            col_btn1, col_btn2 = st.columns(2)
+            btn_local  = col_btn1.button("🔬 Classifier (local)", use_container_width=True)
+            btn_ia     = col_btn2.button("🤖 Analyser avec l'IA", use_container_width=True,
+                                          disabled=not ia_active)
+
+        with col2:
+            st.markdown("### 📊 Résultats — Classification Ruttner 1988")
+            scores     = classify_race(aile, cubital, glossa)
+            race_prob  = max(scores, key=scores.get)
+            confiance  = scores[race_prob]
+
+            # Bannière résultat
+            st.markdown(f"""
+            <div style='background:#FFF8E8;border:1px solid #C8820A;border-left:4px solid #C8820A;
+                        border-radius:8px;padding:12px 16px;margin-bottom:12px'>
+                <div style='font-size:.95rem;font-weight:600;color:#1a1209'>
+                    Race probable : <span style='color:#C8820A'>Apis mellifera {race_prob}</span>
+                </div>
+                <div style='font-size:.78rem;color:#8B7355;margin-top:3px'>
+                    Algorithme local · Confiance {confiance}% ·
+                    aile={aile}mm / cubital={cubital} / glossa={glossa}mm
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # Barres de confiance
+            couleurs = {"intermissa":"#C8820A","sahariensis":"#8B7355",
+                        "ligustica":"#2E7D32","carnica":"#1565C0","hybride":"#888"}
+            fig = go.Figure()
+            for race, pct in sorted(scores.items(), key=lambda x: -x[1]):
+                fig.add_trace(go.Bar(y=[race], x=[pct], orientation="h",
+                                     marker_color=couleurs.get(race,"#ccc"),
+                                     text=f"{pct}%", textposition="auto", name=race))
+            fig.update_layout(height=220, showlegend=False, template="plotly_white",
+                              paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                              margin=dict(t=0,b=0,l=0,r=10),
+                              xaxis=dict(range=[0,100], title="Confiance (%)"))
+            st.plotly_chart(fig, use_container_width=True)
+
+            # Scores de production (étoiles)
+            prod_scores = {
+                "intermissa":   {"miel":4,"pollen":3,"propolis":5,"gr":2},
+                "sahariensis":  {"miel":3,"pollen":4,"propolis":3,"gr":2},
+                "ligustica":    {"miel":5,"pollen":3,"propolis":1,"gr":3},
+                "carnica":      {"miel":4,"pollen":4,"propolis":2,"gr":3},
+                "hybride":      {"miel":3,"pollen":3,"propolis":3,"gr":2},
+            }
+            ps = prod_scores.get(race_prob, {"miel":3,"pollen":3,"propolis":3,"gr":2})
+            st.markdown("**Potentiel de production estimé (algorithme local) :**")
+            cols_s = st.columns(4)
+            for col, (label, icon, key) in zip(cols_s, [
+                ("Miel","🍯","miel"), ("Pollen","🌼","pollen"),
+                ("Propolis","🟤","propolis"), ("Gelée R.","👑","gr")
+            ]):
+                note = ps[key]
+                etoiles = "⭐" * note + "☆" * (5 - note)
+                col.markdown(f"<div style='text-align:center;font-size:.75rem;color:#8B7355'>{icon} {label}</div>"
+                             f"<div style='text-align:center;font-size:.85rem'>{etoiles}</div>",
+                             unsafe_allow_html=True)
+
+        # ── Sauvegarde locale ──────────────────────────────────────────────
+        if btn_local:
+            rid = opts[ruche_sel]
+            conf_json = json.dumps([{"race": r, "confiance": p} for r, p in scores.items()])
+            spec = " / ".join(specialisations.get(race_prob, []))
+            conn.execute("""
+                INSERT INTO morph_analyses
+                (ruche_id,date_analyse,longueur_aile_mm,largeur_aile_mm,indice_cubital,
+                 glossa_mm,tomentum,pigmentation,race_probable,confiance_json,specialisation,notes)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+            """, (rid, str(datetime.date.today()), aile, largeur, cubital,
+                  glossa, tomentum, pigmentation, race_prob, conf_json, spec, notes))
+            conn.commit()
+            log_action("Morphométrie classifiée (local)", f"Ruche {ruche_sel} — {race_prob} {confiance}%")
+            result_json = {
+                "id_analyse": datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
+                "date": datetime.datetime.now().isoformat() + "Z",
+                "ruche": ruche_sel,
+                "morphometrie": {
+                    "mesures": {"longueur_aile_mm": aile, "largeur_aile_mm": largeur,
+                                "indice_cubital": cubital, "glossa_mm": glossa,
+                                "tomentum": tomentum, "pigmentation": pigmentation},
+                    "classification_raciale": [{"race": r, "confiance": p} for r, p in scores.items()],
+                    "race_probable": race_prob, "specialisation": spec,
+                }
+            }
+            st.success(f"✅ Classification locale sauvegardée : **{race_prob}** ({confiance}%)")
+            st.download_button("⬇️ Télécharger JSON", json.dumps(result_json, indent=2, ensure_ascii=False),
+                               f"morpho_{datetime.date.today()}.json", "application/json")
+
+        # ── Analyse IA Claude ──────────────────────────────────────────────
+        if btn_ia:
+            img_bytes = img_file.read() if img_file else None
+            with st.spinner("🤖 Claude analyse les données morphométriques..."):
+                resultat_ia = ia_analyser_morphometrie(
+                    aile, largeur, cubital, glossa, tomentum, pigmentation,
+                    race_prob, confiance, img_bytes
+                )
+            if resultat_ia:
+                afficher_resultat_ia(resultat_ia, "Analyse morphométrique approfondie — Claude IA")
+                log_action("Morphométrie IA", f"Ruche {ruche_sel} — analyse Claude effectuée")
+                # Sauvegarde avec note IA
+                rid = opts[ruche_sel]
+                conf_json = json.dumps([{"race": r, "confiance": p} for r, p in scores.items()])
+                spec = " / ".join(specialisations.get(race_prob, []))
+                conn.execute("""
+                    INSERT INTO morph_analyses
+                    (ruche_id,date_analyse,longueur_aile_mm,largeur_aile_mm,indice_cubital,
+                     glossa_mm,tomentum,pigmentation,race_probable,confiance_json,specialisation,notes)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                """, (rid, str(datetime.date.today()), aile, largeur, cubital,
+                      glossa, tomentum, pigmentation, race_prob, conf_json, spec,
+                      f"[IA] {notes}"))
+                conn.commit()
+            else:
+                st.warning("⚠️ IA non disponible. Configurez votre clé API Anthropic ci-dessus.")
+
+    with tab2:
+        df = pd.read_sql("""
+            SELECT m.id, r.nom as ruche, m.date_analyse, m.longueur_aile_mm,
+                   m.indice_cubital, m.glossa_mm, m.race_probable, m.specialisation, m.notes
+            FROM morph_analyses m JOIN ruches r ON r.id=m.ruche_id
+            ORDER BY m.date_analyse DESC
+        """, conn)
+        if not df.empty:
+            st.dataframe(df, use_container_width=True, hide_index=True)
+            csv = df.to_csv(index=False).encode("utf-8")
+            st.download_button("⬇️ Exporter CSV", csv, "morphometrie.csv", "text/csv")
+        else:
+            st.info("Aucune analyse morphométrique enregistrée.")
+
+    conn.close()
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# PAGE : CARTOGRAPHIE
+# ════════════════════════════════════════════════════════════════════════════
+def page_carto():
+    st.markdown("## 🗺️ Cartographie — Zones mellifères + Analyse IA")
+
+    # ── Clé API ──────────────────────────────────────────────────────────────
+    ia_active = widget_cle_api()
+
+    conn = get_db()
+    tab1, tab2, tab3 = st.tabs(["🗺️ Carte & Zones", "🌿 Analyse environnement IA", "➕ Ajouter une zone"])
+
+    # ── TAB 1 : CARTE ─────────────────────────────────────────────────────────
+    with tab1:
+        df_zones  = pd.read_sql("SELECT * FROM zones", conn)
+        df_ruches = pd.read_sql("SELECT * FROM ruches WHERE statut='actif' AND latitude IS NOT NULL", conn)
+
+        if FOLIUM_OK:
+            center_lat = float(df_ruches["latitude"].mean()) if not df_ruches.empty else 34.88
+            center_lon = float(df_ruches["longitude"].mean()) if not df_ruches.empty else 1.32
+            m = folium.Map(location=[center_lat, center_lon], zoom_start=13,
+                           tiles="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+                           attr="Google Satellite")
+            couleurs_pot = {"élevé":"green","modéré":"orange","faible":"red",
+                            "exceptionnel":"darkgreen","modere":"orange"}
+
+            for _, r in df_ruches.iterrows():
+                folium.Marker(
+                    [r["latitude"], r["longitude"]],
+                    popup=f"<b>{r['nom']}</b><br>{r['race']}<br>{r['localisation']}",
+                    icon=folium.Icon(color="orange", icon="home", prefix="fa")
+                ).add_to(m)
+
+            for _, z in df_zones.iterrows():
+                if z["latitude"] and z["longitude"]:
+                    col_m = couleurs_pot.get(str(z["potentiel"]).lower(), "blue")
+                    popup_html = f"""
+                    <b>{z['nom']}</b><br>
+                    Flore : {z['flore_principale']}<br>
+                    NDVI : {z['ndvi']}<br>
+                    Potentiel : {z['potentiel']}<br>
+                    Surface : {z['superficie_ha']} ha
+                    """
+                    folium.CircleMarker(
+                        [z["latitude"], z["longitude"]], radius=14,
+                        popup=folium.Popup(popup_html, max_width=200),
+                        color=col_m, fill=True, fill_color=col_m, fill_opacity=0.55
+                    ).add_to(m)
+
+            st_folium(m, width="100%", height=420)
+        else:
+            st.warning("Installez `folium` et `streamlit-folium` pour la carte interactive.")
+
+        # Tableau des zones + bouton analyse IA par zone
+        st.markdown("### 📋 Zones enregistrées")
+        if not df_zones.empty:
+            for _, z in df_zones.iterrows():
+                with st.expander(f"📍 {z['nom']} — {z['flore_principale']} · {z['potentiel']}"):
+                    col_z1, col_z2, col_z3, col_z4 = st.columns(4)
+                    col_z1.metric("Surface", f"{z['superficie_ha']} ha")
+                    col_z2.metric("NDVI", f"{z['ndvi']:.2f}")
+                    col_z3.metric("Type", z["type_zone"])
+                    col_z4.metric("Potentiel", z["potentiel"])
+
+                    if st.button(f"🤖 Analyser '{z['nom']}' avec l'IA",
+                                  key=f"ia_zone_{z['id']}", disabled=not ia_active):
+                        with st.spinner("🤖 Claude analyse la zone..."):
+                            result = ia_analyser_zone_carto(
+                                z["nom"], z["flore_principale"],
+                                z["superficie_ha"], z["ndvi"],
+                                z["potentiel"], z["type_zone"],
+                                z["latitude"], z["longitude"]
+                            )
+                        if result and "error" not in result:
+                            _afficher_diagnostic_zone(result, z["nom"])
+                            log_action("Analyse IA zone", f"Zone '{z['nom']}' analysée par Claude")
+                        elif result:
+                            st.error(f"Erreur IA : {result.get('error')}")
+                        else:
+                            st.warning("⚠️ Configurez votre clé API Anthropic.")
+
+    # ── TAB 2 : ANALYSE ENVIRONNEMENT IA ─────────────────────────────────────
+    with tab2:
+        st.markdown("### 🌿 Analyse IA d'un environnement mellifère")
+        st.markdown("""
+        <div style='background:#F0F9F0;border:1px solid #A5D6A7;border-radius:8px;padding:12px;
+                    font-size:.83rem;color:#1a1209;margin-bottom:16px'>
+        📸 Décrivez votre environnement (ou téléversez une photo du paysage) et l'IA évalue
+        le potentiel <b>Miel / Pollen / Propolis / Gelée royale</b> sur une échelle /5 ⭐
+        </div>
+        """, unsafe_allow_html=True)
+
+        col_env1, col_env2 = st.columns([1.2, 1])
+        with col_env1:
+            description = st.text_area(
+                "Description de l'environnement *",
+                placeholder=(
+                    "Ex : Zone de garrigue méditerranéenne avec chênes-lièges dominants, "
+                    "romarin, lavande stoechas, thym et jujubiers en bordure. "
+                    "Exposition sud, altitude 600m, oued permanent à 300m, "
+                    "pas de cultures agricoles à proximité..."
+                ),
+                height=140,
+                key="env_description"
+            )
+            col_s1, col_s2 = st.columns(2)
+            saison = col_s1.selectbox("Saison actuelle",
+                                       ["Printemps","Été","Automne","Hiver"], key="env_saison")
+            col_lat, col_lon = st.columns(2)
+            env_lat = col_lat.number_input("Latitude (optionnel)", -90.0, 90.0, 34.88, 0.0001,
+                                            format="%.4f", key="env_lat")
+            env_lon = col_lon.number_input("Longitude (optionnel)", -180.0, 180.0, 1.32, 0.0001,
+                                            format="%.4f", key="env_lon")
+
+        with col_env2:
+            st.markdown("**📷 Photo du paysage / de la flore (optionnel)**")
+            env_img = st.file_uploader("Photo paysage ou flore", type=["jpg","jpeg","png","webp"],
+                                        key="env_img")
+            if env_img:
+                st.image(env_img, caption="Aperçu de l'environnement", use_container_width=True)
+
+        btn_env = st.button("🤖 Lancer l'analyse IA de l'environnement",
+                             use_container_width=True, disabled=not ia_active)
+
+        if not ia_active:
+            st.info("🔑 Configurez votre clé API Anthropic (en haut de page) pour activer l'analyse IA.")
+
+        if btn_env:
+            if not description.strip():
+                st.warning("⚠️ Veuillez décrire l'environnement.")
+            else:
+                img_bytes = env_img.read() if env_img else None
+                with st.spinner("🤖 Claude analyse l'environnement mellifère... (5-15 secondes)"):
+                    resultat = ia_analyser_environnement(
+                        description, env_lat, env_lon, saison, img_bytes
+                    )
+                if resultat and not resultat.startswith("Erreur"):
+                    afficher_resultat_ia(resultat, "Analyse environnementale mellifère — Claude IA")
+                    log_action("Analyse IA environnement",
+                               f"Zone {env_lat:.2f},{env_lon:.2f} — {saison}")
+
+                    # Proposer de sauvegarder en zone
+                    st.markdown("---")
+                    st.markdown("**💾 Sauvegarder cette zone dans la cartographie ?**")
+                    with st.form("save_env_zone"):
+                        nom_z = st.text_input("Nom de la zone", "Zone analysée IA")
+                        type_z = st.selectbox("Type", ["nectar","pollen","nectar+pollen","propolis","mixte"])
+                        surf_z = st.number_input("Superficie estimée (ha)", 0.0, 5000.0, 10.0)
+                        if st.form_submit_button("💾 Sauvegarder dans la cartographie"):
+                            conn.execute("""
+                                INSERT INTO zones (nom,type_zone,latitude,longitude,superficie_ha,
+                                                   flore_principale,potentiel,notes)
+                                VALUES (?,?,?,?,?,?,?,?)
+                            """, (nom_z, type_z, env_lat, env_lon, surf_z,
+                                  description[:100], "élevé", "[IA] " + description[:200]))
+                            conn.commit()
+                            log_action("Zone sauvegardée depuis analyse IA", nom_z)
+                            st.success(f"✅ Zone '{nom_z}' sauvegardée dans la cartographie !")
+                elif resultat:
+                    st.error(resultat)
+
+    # ── TAB 3 : AJOUTER ZONE ─────────────────────────────────────────────────
+    with tab3:
+        with st.form("add_zone"):
+            col1, col2 = st.columns(2)
+            nom       = col1.text_input("Nom de la zone*")
+            type_zone = col2.selectbox("Type", ["nectar","pollen","nectar+pollen","propolis","mixte"])
+            col3, col4 = st.columns(2)
+            lat       = col3.number_input("Latitude", value=34.88, format="%.4f")
+            lon       = col4.number_input("Longitude", value=1.32, format="%.4f")
+            col5, col6, col7 = st.columns(3)
+            superficie = col5.number_input("Superficie (ha)", 0.0, 5000.0, 10.0)
+            flore      = col6.text_input("Flore principale")
+            ndvi       = col7.number_input("NDVI", 0.0, 1.0, 0.65, 0.01)
+            potentiel  = st.selectbox("Potentiel mellifère", ["faible","modéré","élevé","exceptionnel"])
+            notes      = st.text_area("Notes")
+            submitted  = st.form_submit_button("✅ Ajouter la zone")
+
+        if submitted and nom:
+            conn.execute("""
+                INSERT INTO zones (nom,type_zone,latitude,longitude,superficie_ha,
+                                   flore_principale,ndvi,potentiel,notes)
+                VALUES (?,?,?,?,?,?,?,?,?)
+            """, (nom, type_zone, lat, lon, superficie, flore, ndvi, potentiel, notes))
+            conn.commit()
+            log_action("Zone ajoutée", f"Zone '{nom}' — {flore} — NDVI {ndvi}")
+            st.success(f"✅ Zone '{nom}' ajoutée.")
+            st.rerun()
+
+    conn.close()
+
+
+def _afficher_diagnostic_zone(result, nom_zone):
+    """Affiche le diagnostic IA d'une zone cartographiée."""
+    d = result.get("diagnostic", {})
+    scores = result.get("scores", {})
+
+    st.markdown(f"""
+    <div style='background:linear-gradient(135deg,#F0F9F0,#FFFDF7);
+                border:1px solid #2E7D32;border-left:4px solid #2E7D32;
+                border-radius:10px;padding:16px;margin:8px 0'>
+        <div style='font-family:Playfair Display,serif;font-size:.95rem;font-weight:600;
+                    color:#2E7D32;margin-bottom:10px'>🤖 Diagnostic IA — {nom_zone}</div>
+        <div style='display:flex;gap:20px;flex-wrap:wrap;margin-bottom:10px'>
+            <span>🌿 Potentiel : <b>{d.get('potentiel_global','—')}</b></span>
+            <span>📊 Indice mellifère : <b>{d.get('indice_mellifere','—')}/10</b></span>
+            <span>🐝 Capacité : <b>{d.get('capacite_ruches','—')} ruches</b></span>
+            <span>📅 Pic : <b>{d.get('saison_pic','—')}</b></span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Scores de production
+    if scores:
+        st.markdown("**Scores de production :**")
+        cols_sc = st.columns(4)
+        icons = {"miel":"🍯","pollen":"🌼","propolis":"🟤","gelee_royale":"👑"}
+        labels = {"miel":"Miel","pollen":"Pollen","propolis":"Propolis","gelee_royale":"Gelée royale"}
+        for col, key in zip(cols_sc, ["miel","pollen","propolis","gelee_royale"]):
+            s = scores.get(key, {})
+            with col:
+                st.markdown(f"""
+                <div style='text-align:center;background:#FFFDF7;border:1px solid #E8D9B0;
+                            border-radius:8px;padding:10px'>
+                    <div style='font-size:1.2rem'>{icons[key]}</div>
+                    <div style='font-size:.75rem;color:#8B7355;font-weight:500'>{labels[key]}</div>
+                    <div style='font-size:.9rem'>{s.get('etoiles','—')}</div>
+                    <div style='font-size:.7rem;color:#8B7355'>{s.get('detail','')[:50]}</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+    # Flore identifiée
+    flore_list = result.get("flore_identifiee", [])
+    if flore_list:
+        st.markdown("**Flore identifiée par l'IA :**")
+        df_f = pd.DataFrame(flore_list)
+        st.dataframe(df_f, use_container_width=True, hide_index=True)
+
+    # Recommandations
+    recs = result.get("recommandations", [])
+    if recs:
+        st.markdown("**Recommandations :**")
+        for r in recs:
+            st.markdown(f"- {r}")
+
+    resume = result.get("resume", "")
+    if resume:
+        st.info(f"📝 {resume}")
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# PAGE : MÉTÉO & MIELLÉE
+# ════════════════════════════════════════════════════════════════════════════
+def page_meteo():
+    st.markdown("## ☀️ Météo & Miellée — Prévisions 7 jours")
+    localisation = get_setting("localisation", "Tlemcen")
+    st.markdown(f"<p style='color:#8B7355'>Données simulées · {localisation}</p>", unsafe_allow_html=True)
+
+    today = datetime.date.today()
+    previsions = [
+        {"jour": (today + datetime.timedelta(days=i)).strftime("%a %d/%m"), "temp": t, "icon": ic, "butinage": b, "pluie": p}
+        for i, (t, ic, b, p) in enumerate([
+            (22, "☀️", "Élevé", 0),
+            (19, "⛅", "Élevé", 5),
+            (21, "🌤️", "Élevé", 10),
+            (14, "🌧️", "Faible", 80),
+            (17, "⛅", "Moyen", 30),
+            (24, "☀️", "Élevé", 0),
+            (26, "☀️", "Élevé", 0),
+        ])
+    ]
+
+    cols = st.columns(7)
+    couleur_butinage = {"Élevé": "#2E7D32", "Moyen": "#F57F17", "Faible": "#C62828"}
+    bg_butinage = {"Élevé": "#E8F5E9", "Moyen": "#FFF8E1", "Faible": "#FFEBEE"}
+
+    for col, p in zip(cols, previsions):
+        with col:
+            st.markdown(f"""
+            <div style='background:#FFFDF7;border:1px solid #E8D9B0;border-radius:8px;padding:10px 6px;text-align:center'>
+                <div style='font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:#8B7355;font-weight:500'>{p['jour']}</div>
+                <div style='font-size:1.4rem;margin:4px 0'>{p['icon']}</div>
+                <div style='font-size:.85rem;font-weight:500;color:#1a1209'>{p['temp']}°C</div>
+                <div style='font-size:.65rem;margin-top:4px;padding:2px 4px;border-radius:4px;
+                    background:{bg_butinage[p["butinage"]]};color:{couleur_butinage[p["butinage"]]}'>{p['butinage']}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("### 📈 Indice de butinage prévisionnel")
+        df_but = pd.DataFrame(previsions)
+        indice = {"Élevé": 90, "Moyen": 55, "Faible": 15}
+        df_but["indice"] = df_but["butinage"].map(indice)
+        fig = px.bar(df_but, x="jour", y="indice", template="plotly_white",
+                     color_discrete_sequence=["#C8820A"])
+        fig.update_layout(height=220, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                          margin=dict(t=0,b=0,l=0,r=0), yaxis=dict(range=[0,100]))
+        st.plotly_chart(fig, use_container_width=True)
+
+    with col2:
+        st.markdown("### 💡 Conseils de la semaine")
+        st.success("☀️ **Lundi–Jeudi** : Conditions excellentes. Prioriser inspections et pose de hausses sur R01, R02, R04.")
+        st.warning("🌧️ **Vendredi** : Pluie prévue. Éviter toute intervention. Vérifier fermetures.")
+        st.info("🍯 **Dimanche–Lundi** : Pic de miellée jujubier prévu. Planifier la récolte en début de semaine prochaine.")
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# PAGE : GÉNÉTIQUE & SÉLECTION
+# ════════════════════════════════════════════════════════════════════════════
+def page_genetique():
+    st.markdown("## 📊 Génétique & Sélection")
+    conn = get_db()
+
+    df = pd.read_sql("""
+        SELECT r.nom, r.race,
+               COALESCE(AVG(i.varroa_pct), 0) as varroa_moy,
+               COALESCE(AVG(i.nb_cadres), 0) as cadres_moy,
+               COALESCE(SUM(rec.quantite_kg), 0) as production_totale,
+               COUNT(i.id) as nb_inspections
+        FROM ruches r
+        LEFT JOIN inspections i ON i.ruche_id = r.id
+        LEFT JOIN recoltes rec ON rec.ruche_id = r.id AND rec.type_produit='miel'
+        WHERE r.statut='actif'
+        GROUP BY r.id, r.nom, r.race
+        ORDER BY production_totale DESC
+    """, conn)
+
+    if not df.empty:
+        df["VSH_score"] = df["varroa_moy"].apply(lambda v: max(0, min(100, 100 - v * 20)))
+        df["Score global"] = (
+            df["production_totale"].rank(pct=True) * 40 +
+            df["VSH_score"].rank(pct=True) * 35 +
+            (1 - df["varroa_moy"].rank(pct=True)) * 25
+        ).round(1)
+
+        st.markdown("### 🏆 Top 3 candidates élevage")
+        top3 = df.nlargest(3, "Score global")
+        for i, (_, row) in enumerate(top3.iterrows()):
+            medal = ["🥇", "🥈", "🥉"][i]
+            st.success(f"{medal} **{row['nom']}** ({row['race']}) — Score : {row['Score global']:.1f}/100 · VSH {row['VSH_score']:.0f}% · Production {row['production_totale']:.1f} kg")
+
+        st.markdown("### 📋 Registre complet")
+        df_display = df[["nom","race","varroa_moy","cadres_moy","production_totale","VSH_score","Score global"]].copy()
+        df_display.columns = ["Ruche","Race","Varroa moy%","Cadres moy","Production kg","VSH%","Score/100"]
+        df_display = df_display.round(2)
+        st.dataframe(df_display, use_container_width=True, hide_index=True)
+
+        # Radar chart
+        st.markdown("### 🕸️ Profil de caractérisation")
+        ruche_sel = st.selectbox("Choisir une ruche", df["nom"].tolist())
+        row = df[df["nom"] == ruche_sel].iloc[0]
+        categories = ["Production", "VSH", "Douceur", "Économie hivernale", "Propolis"]
+        values = [
+            min(100, row["production_totale"] * 2),
+            row["VSH_score"],
+            max(0, 100 - row["varroa_moy"] * 15),
+            70, 60  # valeurs simulées
+        ]
+        fig = go.Figure(go.Scatterpolar(
+            r=values + [values[0]], theta=categories + [categories[0]],
+            fill="toself", fillcolor="rgba(200,130,10,0.2)",
+            line_color="#C8820A"
+        ))
+        fig.update_layout(polar=dict(radialaxis=dict(range=[0,100])),
+                          height=350, paper_bgcolor="rgba(0,0,0,0)")
+        st.plotly_chart(fig, use_container_width=True)
+
+    conn.close()
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# PAGE : FLORE MELLIFÈRE
+# ════════════════════════════════════════════════════════════════════════════
+def page_flore():
+    st.markdown("## 🌿 Flore mellifère — Calendrier")
+    flore_data = [
+        {"Espèce": "Romarin (Rosmarinus officinalis)", "Nectar": "⭐⭐⭐", "Pollen": "⭐⭐", "Propolis": "-", "Période": "Fév–Avr", "Potentiel": "Élevé"},
+        {"Espèce": "Jujubier (Ziziphus lotus)", "Nectar": "⭐⭐⭐⭐", "Pollen": "⭐⭐⭐", "Propolis": "-", "Période": "Avr–Juin", "Potentiel": "Exceptionnel"},
+        {"Espèce": "Chêne-liège (Quercus suber)", "Nectar": "⭐", "Pollen": "⭐⭐⭐⭐", "Propolis": "⭐⭐", "Période": "Avr–Mai", "Potentiel": "Élevé"},
+        {"Espèce": "Lavande (Lavandula stoechas)", "Nectar": "⭐⭐⭐", "Pollen": "⭐⭐", "Propolis": "-", "Période": "Mai–Juil", "Potentiel": "Élevé"},
+        {"Espèce": "Thym (Thymus algeriensis)", "Nectar": "⭐⭐⭐", "Pollen": "⭐⭐⭐", "Propolis": "⭐", "Période": "Mar–Juin", "Potentiel": "Élevé"},
+        {"Espèce": "Eucalyptus (E. globulus)", "Nectar": "⭐⭐⭐⭐", "Pollen": "⭐⭐", "Propolis": "⭐", "Période": "Été", "Potentiel": "Élevé"},
+        {"Espèce": "Caroube (Ceratonia siliqua)", "Nectar": "⭐⭐", "Pollen": "⭐⭐", "Propolis": "-", "Période": "Sep–Oct", "Potentiel": "Modéré"},
+    ]
+    df_flore = pd.DataFrame(flore_data)
+    st.dataframe(df_flore, use_container_width=True, hide_index=True)
+
+    st.markdown("### 📅 Calendrier de miellée")
+    mois = ["Jan","Fév","Mar","Avr","Mai","Juin","Juil","Aoû","Sep","Oct","Nov","Déc"]
+    esp = ["Romarin","Jujubier","Chêne-liège","Lavande","Thym","Eucalyptus","Caroube"]
+    activite = np.array([
+        [0,3,3,2,0,0,0,0,0,0,0,0],
+        [0,0,0,3,3,2,0,0,0,0,0,0],
+        [0,0,0,3,3,0,0,0,0,0,0,0],
+        [0,0,0,0,3,3,3,0,0,0,0,0],
+        [0,0,3,3,3,2,0,0,0,0,0,0],
+        [0,0,0,0,0,0,3,3,2,0,0,0],
+        [0,0,0,0,0,0,0,0,3,3,0,0],
+    ], dtype=float)
+
+    fig = px.imshow(activite, labels=dict(x="Mois", y="Espèce", color="Intensité"),
+                    x=mois, y=esp,
+                    color_continuous_scale=[[0,"#F5EDD8"],[0.5,"#F5C842"],[1,"#C8820A"]],
+                    template="plotly_white")
+    fig.update_layout(height=320, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                      margin=dict(t=10,b=10,l=0,r=0))
+    st.plotly_chart(fig, use_container_width=True)
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# PAGE : ALERTES
+# ════════════════════════════════════════════════════════════════════════════
+def page_alertes():
+    st.markdown("## ⚠️ Alertes")
+    conn = get_db()
+
+    # Varroa critique
+    df_crit = pd.read_sql("""
+        SELECT r.nom, i.varroa_pct, i.date_inspection, i.notes
+        FROM inspections i JOIN ruches r ON r.id=i.ruche_id
+        WHERE i.varroa_pct >= 3.0 AND i.date_inspection >= date('now','-7 days')
+        ORDER BY i.varroa_pct DESC
+    """, conn)
+    # Varroa attention
+    df_warn = pd.read_sql("""
+        SELECT r.nom, i.varroa_pct, i.date_inspection
+        FROM inspections i JOIN ruches r ON r.id=i.ruche_id
+        WHERE i.varroa_pct >= 2.0 AND i.varroa_pct < 3.0 AND i.date_inspection >= date('now','-7 days')
+        ORDER BY i.varroa_pct DESC
+    """, conn)
+    # Top productrices GR
+    df_gr = pd.read_sql("""
+        SELECT r.nom, SUM(rec.quantite_kg) as total, MAX(rec.hda_pct) as hda
+        FROM recoltes rec JOIN ruches r ON r.id=rec.ruche_id
+        WHERE rec.type_produit='gelée royale'
+        GROUP BY r.nom HAVING total > 0.3
+    """, conn)
+
+    if not df_crit.empty:
+        st.markdown("### 🔴 Alertes critiques (Varroa ≥ 3%)")
+        for _, row in df_crit.iterrows():
+            st.error(f"🔴 **{row['nom']}** — Varroa **{row['varroa_pct']}%** le {row['date_inspection']} · Traitement immédiat requis !")
+
+    if not df_warn.empty:
+        st.markdown("### 🟡 Alertes attention (Varroa ≥ 2%)")
+        for _, row in df_warn.iterrows():
+            st.warning(f"🟡 **{row['nom']}** — Varroa **{row['varroa_pct']}%** le {row['date_inspection']} · Surveillance renforcée.")
+
+    if not df_gr.empty:
+        st.markdown("### 🟢 Excellentes productrices gelée royale")
+        for _, row in df_gr.iterrows():
+            hda_str = f" · 10-HDA {row['hda']:.1f}%" if row["hda"] else ""
+            st.success(f"🟢 **{row['nom']}** — {row['total']:.2f} kg gelée royale{hda_str} → Candidate élevage sélectif")
+
+    if df_crit.empty and df_warn.empty and df_gr.empty:
+        st.info("✅ Aucune alerte active en ce moment.")
+
+    conn.close()
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# PAGE : JOURNAL
+# ════════════════════════════════════════════════════════════════════════════
+def page_journal():
+    st.markdown("## 📋 Journal d'activité")
+    conn = get_db()
+    df = pd.read_sql("SELECT * FROM journal ORDER BY timestamp DESC LIMIT 100", conn)
+    conn.close()
+
+    if not df.empty:
+        csv = df.to_csv(index=False).encode("utf-8")
+        st.download_button("⬇️ Exporter CSV", csv, "journal.csv", "text/csv")
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    else:
+        st.info("Le journal est vide.")
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# PAGE : ADMINISTRATION
+# ════════════════════════════════════════════════════════════════════════════
+def page_admin():
+    st.markdown("## ⚙️ Administration")
+    conn = get_db()
+
+    tab1, tab2, tab3, tab4 = st.tabs(["🏠 Profil rucher", "🤖 Clé API IA", "🔐 Mot de passe", "💾 Base de données"])
+
+    with tab1:
+        rucher_nom = get_setting("rucher_nom", "Mon Rucher")
+        localisation = get_setting("localisation", "")
+        with st.form("settings_form"):
+            new_nom = st.text_input("Nom du rucher", rucher_nom)
+            new_loc = st.text_input("Localisation", localisation)
+            submitted = st.form_submit_button("💾 Sauvegarder")
+        if submitted:
+            conn.execute("INSERT OR REPLACE INTO settings VALUES ('rucher_nom',?)", (new_nom,))
+            conn.execute("INSERT OR REPLACE INTO settings VALUES ('localisation',?)", (new_loc,))
+            conn.commit()
+            log_action("Paramètres modifiés", f"Nom: {new_nom}, Localisation: {new_loc}")
+            st.success("✅ Paramètres sauvegardés.")
+
+    with tab2:
+        st.markdown("### 🤖 Gestion des fournisseurs IA — Tous gratuits")
+        st.markdown("""
+        <div style='background:#FFF8E8;border:1px solid #C8820A;border-radius:8px;padding:14px;
+                    font-size:.84rem;color:#1a1209;margin-bottom:16px'>
+        <b>ApiTrack Pro supporte 10 fournisseurs IA 100% gratuits.</b>
+        Configurez une ou plusieurs clés — l'app utilisera le fournisseur actif sélectionné.
+        Pour changer de fournisseur depuis n'importe quelle page IA, utilisez le sélecteur intégré.
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Tableau récapitulatif des fournisseurs
+        rows = []
+        for pname, cfg in IA_PROVIDERS.items():
+            key = get_api_key_for_provider(pname)
+            rows.append({
+                "Fournisseur": pname,
+                "Modèle par défaut": cfg["default"],
+                "Quota gratuit": cfg["quota"],
+                "Vision": "✅" if cfg["vision"] else "❌",
+                "Statut": "✅ Configuré" if key else "❌ Manquant",
+            })
+        df_prov = pd.DataFrame(rows)
+        st.dataframe(df_prov, use_container_width=True, hide_index=True)
+
+        st.markdown("#### 🔑 Configurer les clés API")
+        prov_sel = st.selectbox("Fournisseur à configurer",
+                                 list(IA_PROVIDERS.keys()), key="admin_prov_sel")
+        cfg_sel = IA_PROVIDERS[prov_sel]
+        key_actuelle = get_api_key_for_provider(prov_sel)
+
+        st.markdown(f"""
+        <div style='font-size:.8rem;background:#F0F9F0;border:1px solid #A5D6A7;
+                    border-radius:6px;padding:10px;margin:8px 0'>
+        🔗 Obtenir la clé : <a href='{cfg_sel["url"]}' target='_blank'>{cfg_sel["url"]}</a><br>
+        📊 Quota : {cfg_sel['quota']}<br>
+        🖼️ Vision/Photo : {'✅ Supporté' if cfg_sel['vision'] else '❌ Texte uniquement'}
+        </div>
+        """, unsafe_allow_html=True)
+
+        with st.form(f"key_form_{prov_sel}"):
+            new_key = st.text_input(
+                f"Clé API pour {prov_sel.split('(')[0].strip()}",
+                value=key_actuelle, type="password",
+                placeholder=cfg_sel.get("prefix","") + "votre-clé-ici"
+            )
+            sel_model_admin = st.selectbox("Modèle à utiliser", cfg_sel["models"],
+                                            index=0, key="admin_model_sel")
+            col_a, col_b = st.columns(2)
+            save = col_a.form_submit_button("💾 Sauvegarder & Activer")
+            delete = col_b.form_submit_button("🗑️ Supprimer la clé")
+
+        if save:
+            conn = get_db()
+            if new_key.strip():
+                conn.execute("INSERT OR REPLACE INTO settings VALUES (?,?)",
+                             (cfg_sel["key"], new_key.strip()))
+            conn.execute("INSERT OR REPLACE INTO settings VALUES ('ia_provider',?)", (prov_sel,))
+            conn.execute("INSERT OR REPLACE INTO settings VALUES ('ia_model',?)", (sel_model_admin,))
+            conn.commit()
+            conn.close()
+            log_action("Fournisseur IA configuré", f"{prov_sel} / {sel_model_admin}")
+            st.success(f"✅ {prov_sel} configuré et activé · Modèle : {sel_model_admin}")
+            st.rerun()
+        if delete:
+            conn = get_db()
+            conn.execute("DELETE FROM settings WHERE key=?", (cfg_sel["key"],))
+            conn.commit()
+            conn.close()
+            st.success("✅ Clé supprimée.")
+            st.rerun()
+
+        # Test rapide
+        if key_actuelle:
+            if st.button("🔬 Tester la connexion", key="admin_test_ia"):
+                with st.spinner("Test en cours..."):
+                    r = ia_call("Réponds uniquement : 'ApiTrack Pro IA OK'")
+                if r and "OK" in r:
+                    st.success(f"✅ {r.strip()}")
+                elif r:
+                    st.info(f"Réponse : {r[:300]}")
+                else:
+                    st.error("❌ Pas de réponse. Vérifiez la clé.")
+
+    with tab3:
+        with st.form("pwd_form"):
+            old_pwd = st.text_input("Mot de passe actuel", type="password")
+            new_pwd = st.text_input("Nouveau mot de passe", type="password")
+            new_pwd2 = st.text_input("Confirmer le nouveau mot de passe", type="password")
+            submitted = st.form_submit_button("🔐 Changer le mot de passe")
+        if submitted:
+            user = check_login(st.session_state.username, old_pwd)
+            if not user:
+                st.error("Mot de passe actuel incorrect.")
+            elif new_pwd != new_pwd2:
+                st.error("Les nouveaux mots de passe ne correspondent pas.")
+            elif len(new_pwd) < 6:
+                st.error("Le mot de passe doit faire au moins 6 caractères.")
+            else:
+                new_hash = hashlib.sha256(new_pwd.encode()).hexdigest()
+                conn.execute("UPDATE users SET password_hash=? WHERE username=?",
+                             (new_hash, st.session_state.username))
+                conn.commit()
+                log_action("Changement mot de passe", "Mot de passe modifié avec succès")
+                st.success("✅ Mot de passe modifié.")
+
+    with tab4:
+        st.markdown("**Sauvegarde de la base**")
+        if os.path.exists(DB_PATH):
+            with open(DB_PATH, "rb") as f:
+                st.download_button("⬇️ Télécharger la base SQLite", f, "apitrack_backup.db", "application/octet-stream")
+
+        st.markdown("**Statistiques**")
+        tables = ["ruches", "inspections", "traitements", "recoltes", "morph_analyses", "zones", "journal"]
+        stats = {}
+        for t in tables:
+            n = conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+            stats[t] = n
+        df_stats = pd.DataFrame({"Table": stats.keys(), "Enregistrements": stats.values()})
+        st.dataframe(df_stats, use_container_width=True, hide_index=True)
+
+        version = get_setting("version", "2.0.0")
+        st.markdown(f"<div class='api-footer'>ApiTrack Pro v{version} · Streamlit · SQLite · © 2025</div>", unsafe_allow_html=True)
+
+    conn.close()
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# ROUTEUR PRINCIPAL
+# ════════════════════════════════════════════════════════════════════════════
+def main():
+    inject_css()
+    init_db()
+
+    if "logged_in" not in st.session_state:
+        st.session_state.logged_in = False
+
+    if not st.session_state.logged_in:
+        login_page()
+        return
+
+    sidebar()
+
+    page = st.session_state.get("page", "dashboard")
+    router = {
+        "dashboard": page_dashboard,
+        "ruches": page_ruches,
+        "inspections": page_inspections,
+        "traitements": page_traitements,
+        "productions": page_productions,
+        "morpho": page_morpho,
+        "carto": page_carto,
+        "meteo": page_meteo,
+        "genetique": page_genetique,
+        "flore": page_flore,
+        "alertes": page_alertes,
+        "journal": page_journal,
+        "admin": page_admin,
+    }
+    fn = router.get(page, page_dashboard)
+    fn()
+
+    st.markdown("""
+    <div class='api-footer'>
+        🐝 ApiTrack Pro v2.0 · Streamlit + Python + SQLite · Rucher de l'Atlas · 2025
+    </div>
+    """, unsafe_allow_html=True)
+
+
+if __name__ == "__main__":
+    main()
