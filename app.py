@@ -1,6 +1,8 @@
 """
 ApiTrack Pro – Application de gestion apicole professionnelle
 Streamlit + Python + SQLite
+CORRECTION : Les fonctions ia_analyser_* utilisent maintenant ia_call()
+             (multi-fournisseurs) au lieu de forcer Anthropic uniquement.
 """
 
 import streamlit as st
@@ -69,9 +71,6 @@ def inject_css():
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
-    /* ═══════════════════════════════════════════════
-       VARIABLES — Thème sombre haute lisibilité
-    ═══════════════════════════════════════════════ */
     :root {
         --gold:         #F5A623;
         --gold-light:   #FFD07A;
@@ -101,9 +100,6 @@ def inject_css():
         --blue-border:  #1A3A5C;
     }
 
-    /* ═══════════════════════════════════════════════
-       FOND GÉNÉRAL
-    ═══════════════════════════════════════════════ */
     .stApp {
         background-color: var(--bg-app) !important;
         color: var(--text-primary) !important;
@@ -114,15 +110,11 @@ def inject_css():
         max-width: 1400px;
         background: var(--bg-main) !important;
     }
-    /* Texte général Streamlit */
     .stApp p, .stApp span, .stApp div, .stApp label,
     .stMarkdown, .stMarkdown p {
         color: var(--text-primary) !important;
     }
 
-    /* ═══════════════════════════════════════════════
-       SIDEBAR — Fond très sombre, texte clair
-    ═══════════════════════════════════════════════ */
     [data-testid="stSidebar"] {
         background: #080C14 !important;
         border-right: 1px solid var(--border) !important;
@@ -145,9 +137,6 @@ def inject_css():
         color: var(--gold-light) !important;
     }
 
-    /* ═══════════════════════════════════════════════
-       TITRES — Tous bien contrastés
-    ═══════════════════════════════════════════════ */
     h1, h2, h3, h4, h5, h6,
     [data-testid="stMarkdownContainer"] h1,
     [data-testid="stMarkdownContainer"] h2,
@@ -159,9 +148,6 @@ def inject_css():
     h2 { font-size: 1.4rem !important; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 16px; }
     h3 { font-size: 1.05rem !important; color: var(--gold-light) !important; }
 
-    /* ═══════════════════════════════════════════════
-       MÉTRIQUES
-    ═══════════════════════════════════════════════ */
     [data-testid="metric-container"] {
         background: var(--bg-card) !important;
         border: 1px solid var(--border) !important;
@@ -182,9 +168,6 @@ def inject_css():
     }
     [data-testid="stMetricDelta"] { color: var(--green) !important; }
 
-    /* ═══════════════════════════════════════════════
-       BOUTONS
-    ═══════════════════════════════════════════════ */
     .stButton > button {
         background: var(--gold-dark) !important;
         color: #FFFFFF !important;
@@ -202,9 +185,6 @@ def inject_css():
         box-shadow: 0 4px 12px rgba(245,166,35,0.3) !important;
     }
 
-    /* ═══════════════════════════════════════════════
-       INPUTS, SELECT, TEXTAREA
-    ═══════════════════════════════════════════════ */
     .stTextInput input,
     .stNumberInput input,
     .stTextArea textarea,
@@ -222,12 +202,10 @@ def inject_css():
         border-color: var(--gold) !important;
         box-shadow: 0 0 0 2px rgba(245,166,35,0.2) !important;
     }
-    /* Placeholder lisible */
     .stTextInput input::placeholder,
     .stTextArea textarea::placeholder {
         color: var(--text-muted) !important;
     }
-    /* Labels des inputs */
     .stTextInput label, .stNumberInput label,
     .stTextArea label, .stSelectbox label,
     .stSlider label, .stCheckbox label,
@@ -237,7 +215,6 @@ def inject_css():
         font-size: 0.875rem !important;
     }
 
-    /* Selectbox */
     [data-testid="stSelectbox"] > div > div {
         background: var(--bg-input) !important;
         color: var(--text-primary) !important;
@@ -249,9 +226,6 @@ def inject_css():
         color: var(--text-primary) !important;
     }
 
-    /* ═══════════════════════════════════════════════
-       TABLEAUX (dataframes)
-    ═══════════════════════════════════════════════ */
     .stDataFrame, [data-testid="stDataFrame"] {
         border: 1px solid var(--border) !important;
         border-radius: 8px !important;
@@ -282,53 +256,13 @@ def inject_css():
         background: var(--bg-card2) !important;
     }
 
-    /* ═══════════════════════════════════════════════
-       ALERTES / INFO / WARNING / SUCCESS / ERROR
-    ═══════════════════════════════════════════════ */
     [data-testid="stAlert"],
     .stAlert {
         border-radius: 8px !important;
         border-width: 1px !important;
         padding: 12px 16px !important;
     }
-    /* Success */
-    [data-testid="stAlert"][kind="success"],
-    .element-container .stSuccess {
-        background: var(--green-bg) !important;
-        border-color: var(--green-border) !important;
-        color: #6EE7B7 !important;
-    }
-    /* Warning */
-    [data-testid="stAlert"][kind="warning"],
-    .element-container .stWarning {
-        background: var(--yellow-bg) !important;
-        border-color: var(--yellow-border) !important;
-        color: #FDE68A !important;
-    }
-    /* Error */
-    [data-testid="stAlert"][kind="error"],
-    .element-container .stError {
-        background: var(--red-bg) !important;
-        border-color: var(--red-border) !important;
-        color: #FCA5A5 !important;
-    }
-    /* Info */
-    [data-testid="stAlert"][kind="info"],
-    .element-container .stInfo {
-        background: var(--blue-bg) !important;
-        border-color: var(--blue-border) !important;
-        color: #93C5FD !important;
-    }
-    /* Texte dans les alertes */
-    [data-testid="stAlert"] p,
-    [data-testid="stAlert"] div,
-    [data-testid="stAlert"] span {
-        color: inherit !important;
-    }
 
-    /* ═══════════════════════════════════════════════
-       TABS (onglets)
-    ═══════════════════════════════════════════════ */
     [data-testid="stTabs"] [role="tablist"] {
         background: var(--bg-card) !important;
         border-bottom: 1px solid var(--border) !important;
@@ -361,9 +295,6 @@ def inject_css():
         padding: 16px !important;
     }
 
-    /* ═══════════════════════════════════════════════
-       EXPANDERS
-    ═══════════════════════════════════════════════ */
     [data-testid="stExpander"] {
         background: var(--bg-card) !important;
         border: 1px solid var(--border) !important;
@@ -382,29 +313,6 @@ def inject_css():
         background: var(--bg-card) !important;
     }
 
-    /* ═══════════════════════════════════════════════
-       SLIDER
-    ═══════════════════════════════════════════════ */
-    [data-testid="stSlider"] [data-baseweb="slider"] div[role="slider"] {
-        background: var(--gold) !important;
-    }
-    [data-testid="stSlider"] [data-baseweb="slider"] div {
-        background: var(--border) !important;
-    }
-    [data-testid="stSlider"] p {
-        color: var(--text-second) !important;
-    }
-
-    /* ═══════════════════════════════════════════════
-       CHECKBOX
-    ═══════════════════════════════════════════════ */
-    [data-testid="stCheckbox"] label span {
-        color: var(--text-primary) !important;
-    }
-
-    /* ═══════════════════════════════════════════════
-       FILE UPLOADER
-    ═══════════════════════════════════════════════ */
     [data-testid="stFileUploader"] {
         background: var(--bg-input) !important;
         border: 1.5px dashed var(--border-light) !important;
@@ -416,9 +324,6 @@ def inject_css():
         color: var(--text-second) !important;
     }
 
-    /* ═══════════════════════════════════════════════
-       DOWNLOAD BUTTON
-    ═══════════════════════════════════════════════ */
     [data-testid="stDownloadButton"] button {
         background: var(--bg-card2) !important;
         color: var(--gold-light) !important;
@@ -431,9 +336,6 @@ def inject_css():
         color: #FFFFFF !important;
     }
 
-    /* ═══════════════════════════════════════════════
-       CARTES CUSTOM (HTML)
-    ═══════════════════════════════════════════════ */
     .api-card {
         background: var(--bg-card);
         border: 1px solid var(--border);
@@ -451,16 +353,10 @@ def inject_css():
         border-bottom: 1px solid var(--border);
     }
 
-    /* ═══════════════════════════════════════════════
-       BADGES DE STATUT — fond sombre, texte brillant
-    ═══════════════════════════════════════════════ */
     .badge-ok   { background:#0D2A1F; color:#6EE7B7; border:1px solid #1A5C3A; padding:3px 10px; border-radius:20px; font-size:0.72rem; font-weight:600; }
     .badge-warn { background:#2A200A; color:#FDE68A; border:1px solid #4A3A10; padding:3px 10px; border-radius:20px; font-size:0.72rem; font-weight:600; }
     .badge-crit { background:#2A0D0D; color:#FCA5A5; border:1px solid #5C1A1A; padding:3px 10px; border-radius:20px; font-size:0.72rem; font-weight:600; }
 
-    /* ═══════════════════════════════════════════════
-       FOOTER
-    ═══════════════════════════════════════════════ */
     .api-footer {
         text-align: center;
         font-size: 0.72rem;
@@ -473,9 +369,6 @@ def inject_css():
         border-radius: 0 0 8px 8px;
     }
 
-    /* ═══════════════════════════════════════════════
-       FORM SUBMIT BUTTON
-    ═══════════════════════════════════════════════ */
     [data-testid="stFormSubmitButton"] button {
         background: var(--gold-dark) !important;
         color: #FFFFFF !important;
@@ -487,9 +380,6 @@ def inject_css():
         background: var(--gold) !important;
     }
 
-    /* ═══════════════════════════════════════════════
-       PROGRESS BAR
-    ═══════════════════════════════════════════════ */
     [data-testid="stProgressBar"] > div {
         background: var(--bg-card2) !important;
     }
@@ -497,27 +387,10 @@ def inject_css():
         background: linear-gradient(90deg, var(--gold-dark), var(--gold)) !important;
     }
 
-    /* ═══════════════════════════════════════════════
-       SPINNER
-    ═══════════════════════════════════════════════ */
-    [data-testid="stSpinner"] p {
-        color: var(--text-second) !important;
-    }
-
-    /* ═══════════════════════════════════════════════
-       SEPARATEUR HR
-    ═══════════════════════════════════════════════ */
     hr { border-color: var(--border) !important; }
-
-    /* ═══════════════════════════════════════════════
-       LIENS
-    ═══════════════════════════════════════════════ */
     a { color: var(--gold-light) !important; }
     a:hover { color: var(--gold) !important; }
 
-    /* ═══════════════════════════════════════════════
-       CODE
-    ═══════════════════════════════════════════════ */
     code {
         background: var(--bg-card2) !important;
         color: var(--gold-light) !important;
@@ -527,21 +400,14 @@ def inject_css():
         font-size: 0.85em !important;
     }
 
-    /* ═══════════════════════════════════════════════
-       SCROLLBAR (webkit)
-    ═══════════════════════════════════════════════ */
     ::-webkit-scrollbar { width: 8px; height: 8px; }
     ::-webkit-scrollbar-track { background: var(--bg-app); }
     ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 4px; }
     ::-webkit-scrollbar-thumb:hover { background: var(--gold-dark); }
 
-    /* ═══════════════════════════════════════════════
-       PLOTLY CHARTS — fond transparent sombre
-    ═══════════════════════════════════════════════ */
     .js-plotly-plot .plotly .main-svg {
         background: transparent !important;
     }
-
     </style>
     """, unsafe_allow_html=True)
 
@@ -663,12 +529,10 @@ def init_db():
     );
     """)
 
-    # Utilisateur admin par défaut
     pwd_hash = hashlib.sha256("admin1234".encode()).hexdigest()
     c.execute("INSERT OR IGNORE INTO users (username, password_hash, email) VALUES (?, ?, ?)",
               ("admin", pwd_hash, "admin@apitrack.pro"))
 
-    # Données de démonstration
     _insert_demo_data(c)
 
     conn.commit()
@@ -676,7 +540,6 @@ def init_db():
 
 
 def _insert_demo_data(c):
-    """Insère des données démo si la table ruches est vide."""
     c.execute("SELECT COUNT(*) FROM ruches")
     if c.fetchone()[0] > 0:
         return
@@ -820,21 +683,7 @@ def get_setting(key, default=""):
 # ════════════════════════════════════════════════════════════════════════════
 # MOTEUR IA MULTI-FOURNISSEURS — 100% GRATUITS
 # ════════════════════════════════════════════════════════════════════════════
-#
-# Fournisseurs supportés (tous gratuits) :
-#   1. Anthropic Claude   — claude-opus-4-5       (sk-ant-...)
-#   2. Google Gemma 4     — gemma-4-31b-it         (via Gemini API, AIzaSy...)
-#   3. Groq               — llama-3.3-70b-versatile (gsk_...)
-#   4. OpenRouter         — llama-4/deepseek:free   (sk-or-...)
-#   5. Mistral            — mistral-large-latest    (...)
-#   6. Cohere             — command-r-plus          (...)
-#   7. Zhipu AI (GLM)     — glm-4v-flash            (...)
-#   8. Cerebras           — llama-3.3-70b           (csk-...)
-#   9. Hugging Face       — mistralai/Mixtral-8x7B  (hf_...)
-#  10. GitHub Models      — gpt-4o / llama-3.3-70b  (ghp_...)
-# ════════════════════════════════════════════════════════════════════════════
 
-# ── Catalogue des fournisseurs IA gratuits ───────────────────────────────────
 IA_PROVIDERS = {
     "🤖 Claude (Anthropic)": {
         "key":        "anthropic_api_key",
@@ -963,12 +812,10 @@ IA_PROVIDERS = {
 
 
 def get_active_provider():
-    """Retourne le nom du fournisseur actif sélectionné par l'utilisateur."""
     return get_setting("ia_provider", list(IA_PROVIDERS.keys())[0])
 
 
 def get_active_model():
-    """Retourne le modèle actif sélectionné."""
     provider = get_active_provider()
     saved = get_setting("ia_model", "")
     if saved and saved in IA_PROVIDERS.get(provider, {}).get("models", []):
@@ -977,7 +824,6 @@ def get_active_model():
 
 
 def get_api_key_for_provider(provider_name):
-    """Récupère la clé API pour un fournisseur donné."""
     cfg = IA_PROVIDERS.get(provider_name, {})
     key = get_setting(cfg.get("key", ""), "")
     if not key:
@@ -988,8 +834,11 @@ def get_api_key_for_provider(provider_name):
 def ia_call(prompt_text, image_bytes=None, json_mode=False):
     """
     Appel unifié vers le fournisseur IA actif.
-    Retourne le texte de la réponse ou None en cas d'erreur.
+    Supporte : Anthropic, Google, Groq, OpenRouter, Mistral, Cohere,
+               Zhipu, Cerebras, HuggingFace, GitHub Models.
     """
+    import urllib.error
+
     provider_name = get_active_provider()
     model         = get_active_model()
     api_key       = get_api_key_for_provider(provider_name)
@@ -1015,9 +864,9 @@ def ia_call(prompt_text, image_bytes=None, json_mode=False):
                                           messages=[{"role": "user", "content": content}])
             return resp.content[0].text
 
-        # ── 2. GOOGLE (Gemini API — Gemma 4 + Gemini) ────────────────────
+        # ── 2. GOOGLE (Gemini API) ────────────────────────────────────────
         elif ptype == "google":
-            import urllib.request, urllib.parse
+            import urllib.request
             parts = []
             if image_bytes and cfg.get("vision"):
                 parts.append({
@@ -1039,7 +888,6 @@ def ia_call(prompt_text, image_bytes=None, json_mode=False):
         # ── 3. COHERE v2 ──────────────────────────────────────────────────
         elif ptype == "cohere":
             import urllib.request
-            # API v2 : endpoint .com (pas .ai), body messages[] (pas message), parse message.content
             body = {
                 "model":    model,
                 "messages": [{"role": "user", "content": prompt_text}],
@@ -1050,7 +898,7 @@ def ia_call(prompt_text, image_bytes=None, json_mode=False):
                 body["response_format"] = {"type": "json_object"}
             payload = json.dumps(body).encode()
             req = urllib.request.Request(
-                "https://api.cohere.com/v2/chat",        # ← .com + /v2/chat
+                "https://api.cohere.com/v2/chat",
                 data=payload,
                 headers={
                     "Content-Type":  "application/json",
@@ -1060,18 +908,15 @@ def ia_call(prompt_text, image_bytes=None, json_mode=False):
             )
             with urllib.request.urlopen(req, timeout=60) as r:
                 data = json.loads(r.read())
-            # Réponse v2 : message.content[0].text ou message.content (str)
             msg = data.get("message", {})
             content = msg.get("content", "")
             if isinstance(content, list) and content:
                 return content[0].get("text", str(content))
             return str(content)
 
-        # ── 4. HUGGING FACE — Inference API v2 (chat/completions) ────────
+        # ── 4. HUGGING FACE ───────────────────────────────────────────────
         elif ptype == "huggingface":
             import urllib.request
-            # Nouvelle Inference API : /v1/chat/completions (compatible OpenAI)
-            # Évite le bug "generated_text contient le prompt"
             body = {
                 "model":    model,
                 "messages": [{"role": "user", "content": prompt_text}],
@@ -1090,13 +935,10 @@ def ia_call(prompt_text, image_bytes=None, json_mode=False):
             )
             with urllib.request.urlopen(req, timeout=90) as r:
                 data = json.loads(r.read())
-            # Format OpenAI standard
             if "choices" in data:
                 return data["choices"][0]["message"]["content"]
-            # Fallback ancienne API
             if isinstance(data, list):
                 full = data[0].get("generated_text", "")
-                # Retire le prompt de la réponse si présent
                 if full.startswith(prompt_text):
                     return full[len(prompt_text):].strip()
                 return full
@@ -1126,7 +968,6 @@ def ia_call(prompt_text, image_bytes=None, json_mode=False):
             payload = json.dumps(body).encode()
             headers = {"Content-Type": "application/json",
                        "Authorization": f"Bearer {api_key}"}
-            # OpenRouter nécessite un referer
             if "openrouter" in base_url:
                 headers["HTTP-Referer"] = "https://apitrack.pro"
                 headers["X-Title"] = "ApiTrack Pro"
@@ -1136,15 +977,12 @@ def ia_call(prompt_text, image_bytes=None, json_mode=False):
                 data = json.loads(r.read())
             return data["choices"][0]["message"]["content"]
 
-        # ── 6. GITHUB MODELS (endpoint officiel 2025 — models.github.ai) ───────
+        # ── 6. GITHUB MODELS ──────────────────────────────────────────────
         elif ptype == "github_models":
             import urllib.request
-            # URL EXACTE selon la doc officielle GitHub (ne pas ajouter /chat/completions)
             endpoint = "https://models.github.ai/inference/chat/completions"
-
             messages = []
             if image_bytes and cfg.get("vision"):
-                # GitHub Models supporte les images via content array
                 messages.append({
                     "role": "user",
                     "content": [
@@ -1157,23 +995,20 @@ def ia_call(prompt_text, image_bytes=None, json_mode=False):
                 })
             else:
                 messages.append({"role": "user", "content": prompt_text})
-
             body = {
-                "model":       model,       # ex: "openai/gpt-4o"
+                "model":       model,
                 "messages":    messages,
                 "max_tokens":  2000,
-                "temperature": 0.3,         # range [0,1] selon doc GitHub
+                "temperature": 0.3,
             }
-            # json_mode seulement si demandé ET supporté par le modèle
             if json_mode and model.startswith("openai/"):
                 body["response_format"] = {"type": "json_object"}
-
             payload = json.dumps(body).encode()
             headers = {
                 "Content-Type":         "application/json",
                 "Accept":               "application/vnd.github+json",
                 "Authorization":        f"Bearer {api_key}",
-                "X-GitHub-Api-Version": "2022-11-28",   # version officielle de la doc
+                "X-GitHub-Api-Version": "2022-11-28",
             }
             req = urllib.request.Request(endpoint, data=payload, headers=headers)
             with urllib.request.urlopen(req, timeout=90) as r:
@@ -1188,21 +1023,13 @@ def ia_call(prompt_text, image_bytes=None, json_mode=False):
             body = e.read().decode()[:400]
         except Exception:
             pass
-        # Messages d'erreur guidés selon le fournisseur et le code HTTP
         if e.code == 401:
             if ptype == "github_models":
                 return (f"❌ GitHub Models — Authentification échouée (401).\n"
-                        f"→ Vérifiez que votre token est un **Fine-grained PAT** (github_pat_...)\n"
-                        f"→ Le token doit avoir la permission **Models → Read-only**\n"
-                        f"→ Les tokens classiques ghp_... ne fonctionnent PAS\n"
-                        f"→ Créez un nouveau token sur : github.com/settings/personal-access-tokens/new")
-            return f"❌ Erreur {provider_name} : HTTP 401 Non autorisé — vérifiez votre clé API. {body}"
+                        f"→ Utilisez un Fine-grained PAT (github_pat_...)\n"
+                        f"→ Permission requise : Models → Read-only")
+            return f"❌ Erreur {provider_name} : HTTP 401 — vérifiez votre clé API. {body}"
         elif e.code == 404:
-            if ptype == "github_models":
-                return (f"❌ GitHub Models — Ressource introuvable (404).\n"
-                        f"→ Modèle '{model}' non disponible. Essayez 'openai/gpt-4.1' ou 'openai/gpt-4o'\n"
-                        f"→ Vérifiez la liste des modèles sur : github.com/marketplace/models\n"
-                        f"Détail : {body}")
             return f"❌ Erreur {provider_name} : HTTP 404 — endpoint ou modèle introuvable. {body}"
         elif e.code == 429:
             return f"❌ Erreur {provider_name} : Quota dépassé (429) — attendez quelques minutes. {body}"
@@ -1220,7 +1047,6 @@ def ia_call_json(prompt_text, image_bytes=None):
     if not result or result.startswith("❌"):
         return {"error": result or "Pas de réponse"}
     text = result.strip()
-    # Nettoyage markdown
     if "```" in text:
         parts = text.split("```")
         for p in parts:
@@ -1233,7 +1059,6 @@ def ia_call_json(prompt_text, image_bytes=None):
     try:
         return json.loads(text)
     except Exception:
-        # Tentative extraction JSON dans le texte
         import re
         m = re.search(r'\{.*\}', text, re.DOTALL)
         if m:
@@ -1244,9 +1069,16 @@ def ia_call_json(prompt_text, image_bytes=None):
         return {"error": f"JSON invalide : {text[:200]}"}
 
 
+# ════════════════════════════════════════════════════════════════════════════
+# FONCTIONS IA MÉTIER — utilisent ia_call() → tous fournisseurs supportés
+# ════════════════════════════════════════════════════════════════════════════
+
 def ia_analyser_morphometrie(aile, largeur, cubital, glossa, tomentum, pigmentation,
                               race_algo, confiance, image_bytes=None):
-    """Analyse morphométrique via le fournisseur IA actif."""
+    """
+    Analyse morphométrique via le fournisseur IA ACTIF (Gemma, Claude, Groq, etc.)
+    Plus de dépendance forcée à Anthropic.
+    """
     pname = get_active_provider()
     model = get_active_model()
     prompt = f"""Tu es expert apicole et morphométriste spécialisé dans la classification des races d'abeilles selon Ruttner (1988).
@@ -1292,7 +1124,10 @@ Sois précis, concis, vocabulaire apicole professionnel."""
 
 def ia_analyser_environnement(description_env, latitude=None, longitude=None,
                                saison="printemps", image_bytes=None):
-    """Analyse environnementale mellifère via le fournisseur IA actif."""
+    """
+    Analyse environnementale mellifère via le fournisseur IA ACTIF.
+    Fonctionne avec Gemma, Claude, Groq, Mistral, etc.
+    """
     pname = get_active_provider()
     coords_str = f"Coordonnées : {latitude:.4f}°N, {longitude:.4f}°E" if latitude else ""
     prompt = f"""Tu es expert apicole senior, botaniste et écologue spécialisé dans l'analyse des environnements mellifères méditerranéens et nord-africains.
@@ -1339,7 +1174,10 @@ Données chiffrées obligatoires. Références botaniques locales nord-africaine
 
 def ia_analyser_zone_carto(nom_zone, flore, superficie, ndvi, potentiel, type_zone,
                             latitude=None, longitude=None):
-    """Analyse JSON d'une zone cartographiée via le fournisseur IA actif."""
+    """
+    Analyse JSON d'une zone cartographiée via le fournisseur IA ACTIF.
+    Fonctionne avec Gemma, Claude, Groq, Mistral, etc.
+    """
     coords_str = f"à {latitude:.4f}°N, {longitude:.4f}°E" if latitude else ""
     prompt = f"""Tu es expert apicole et écologue. Analyse cette zone mellifère cartographiée.
 
@@ -1388,9 +1226,14 @@ def afficher_resultat_ia(texte, titre="🤖 Analyse IA"):
     st.markdown("</div></div>", unsafe_allow_html=True)
 
 
+# Alias de compatibilité
+def afficher_resultat_ia_zone(texte, titre="🤖 Analyse IA"):
+    afficher_resultat_ia(texte, titre)
+
+
 def widget_ia_selector():
     """
-    Widget sélecteur de fournisseur IA — affiché en haut des pages IA.
+    Widget sélecteur de fournisseur IA.
     Retourne True si une clé est configurée pour le fournisseur actif.
     """
     provider_names = list(IA_PROVIDERS.keys())
@@ -1419,7 +1262,6 @@ def widget_ia_selector():
         </div>
         """, unsafe_allow_html=True)
 
-        # Instructions spéciales GitHub Models
         if cfg.get("type") == "github_models":
             st.markdown("""
             <div style='background:#0D1A2A;border:1px solid #1A3A5C;border-radius:6px;
@@ -1456,7 +1298,6 @@ def widget_ia_selector():
             st.success(f"✅ {sel} activé — modèle {sel_model}")
             st.rerun()
         if col_s2.button("🔬 Tester la connexion", key="test_ia_provider"):
-            # Sauvegarde temporaire pour le test
             conn = get_db()
             if new_key:
                 conn.execute("INSERT OR REPLACE INTO settings VALUES (?,?)", (cfg["key"], new_key))
@@ -1473,7 +1314,6 @@ def widget_ia_selector():
             else:
                 st.error("❌ Pas de réponse. Vérifiez la clé API.")
 
-    # Statut compact
     api_key = get_api_key_for_provider(get_active_provider())
     prov    = get_active_provider()
     mod     = get_active_model()
@@ -1487,231 +1327,8 @@ def widget_ia_selector():
         return False
 
 
-def get_anthropic_client():
-    """Compatibilité — retourne le client Anthropic si actif."""
-    if "Anthropic" in get_active_provider() and ANTHROPIC_OK:
-        key = get_api_key_for_provider(get_active_provider())
-        return anthropic.Anthropic(api_key=key) if key else None
-    return None
-
-
-def ia_analyser_morphometrie(aile, largeur, cubital, glossa, tomentum, pigmentation,
-                              race_algo, confiance, image_bytes=None):
-    """
-    Appel IA Claude pour analyse morphométrique approfondie.
-    Optionnellement avec photo macro de l'abeille.
-    """
-    client = get_anthropic_client()
-    if not client:
-        return None
-
-    prompt = f"""Tu es expert apicole et morphométriste spécialisé dans la classification des races d'abeilles selon Ruttner (1988).
-
-Voici les mesures morphométriques relevées sur une abeille :
-- Longueur aile antérieure : {aile} mm
-- Largeur aile : {largeur} mm  
-- Indice cubital : {cubital}
-- Longueur glossa : {glossa} mm
-- Tomentum (densité poils thorax 0-3) : {tomentum}
-- Pigmentation scutellum : {pigmentation}
-
-L'algorithme local a classifié : **{race_algo}** avec {confiance}% de confiance.
-
-Effectue une analyse morphométrique complète et réponds en français avec ce plan structuré :
-
-## 1. Validation de la classification
-- Confirme ou nuance la race {race_algo} en t'appuyant sur les valeurs de référence Ruttner 1988
-- Donne ton niveau de confiance personnel (0-100%)
-- Compare avec les valeurs typiques pour : A.m. intermissa, sahariensis, ligustica, carnica
-
-## 2. Scores de production pour chaque type (note /5 🌟)
-Pour la race identifiée, évalue précisément :
-- 🍯 **Miel** : X/5 — (justification courte)
-- 🌼 **Pollen** : X/5 — (justification courte)
-- 🟤 **Propolis** : X/5 — (justification courte)
-- 👑 **Gelée royale** : X/5 — (justification courte)
-
-## 3. Caractéristiques comportementales clés
-- Douceur, essaimage, économie hivernale, résistance maladies (2-3 lignes)
-
-## 4. Recommandations stratégiques
-- 2-3 recommandations concrètes pour l'apiculteur (renouvellement reine, sélection, croisements)
-
-## 5. Plan d'action (3 étapes prioritaires)
-- Action 1 : ...
-- Action 2 : ...
-- Action 3 : ...
-
-Sois précis, concis et pratique. Vocabulaire apicole professionnel."""
-
-    content = [{"type": "text", "text": prompt}]
-    if image_bytes:
-        content.insert(0, {
-            "type": "image",
-            "source": {
-                "type": "base64",
-                "media_type": "image/jpeg",
-                "data": base64.b64encode(image_bytes).decode("utf-8"),
-            }
-        })
-        content.append({"type": "text", "text": "Analyse également la photo macro fournie pour affiner la classification morphométrique."})
-
-    try:
-        response = client.messages.create(
-            model="claude-opus-4-5",
-            max_tokens=1500,
-            messages=[{"role": "user", "content": content}]
-        )
-        return response.content[0].text
-    except Exception as e:
-        return f"Erreur IA : {e}"
-
-
-def ia_analyser_environnement(description_env, latitude=None, longitude=None,
-                               saison="printemps", image_bytes=None):
-    """
-    Appel IA Claude pour analyse environnementale mellifère.
-    Évalue le potentiel miel/pollen/propolis/gelée royale sur une zone.
-    """
-    client = get_anthropic_client()
-    if not client:
-        return None
-
-    coords_str = f"Coordonnées : {latitude}°N, {longitude}°E" if latitude else ""
-    prompt = f"""Tu es expert apicole senior, botaniste et écologue spécialisé dans l'analyse des environnements mellifères.
-
-Zone à analyser :
-{coords_str}
-Saison : {saison}
-Description de l'environnement : {description_env}
-
-Effectue une analyse environnementale mellifère complète et réponds en français avec ce plan :
-
-## 🌿 1. Analyse de la flore identifiée
-Pour chaque espèce mentionnée ou probable dans cette zone :
-- Nom scientifique et commun
-- Source : Nectar / Pollen / Résine (propolis) / Mixte
-- Période de floraison
-- Qualité mellifère (Excellente / Bonne / Moyenne / Faible)
-
-## 📊 2. Scores de potentiel de production (note /5 🌟)
-Évalue précisément le potentiel de cette zone pour :
-- 🍯 **Miel** : X/5 — (type, saveur probable, rendement estimé kg/ruche/an)
-- 🌼 **Pollen** : X/5 — (diversité, richesse protéique)
-- 🟤 **Propolis** : X/5 — (espèces résineuses présentes)
-- 👑 **Gelée royale** : X/5 — (disponibilité protéines + sucres)
-
-## 🌡️ 3. Analyse microclimatique
-- Exposition, humidité, vent, eau disponible
-- Risques (pesticides, concurrence, sécheresse)
-- Avantages spécifiques à cette zone
-
-## 🎯 4. Verdict global
-- Potentiel global : [Faible / Modéré / Élevé / Exceptionnel]
-- Indice mellifère : X/10
-- Production principale recommandée : [Miel / Pollen / Propolis / Gelée royale / Mixte]
-- Nombre de ruches recommandé pour cette zone (capacité de charge)
-
-## 🐝 5. Recommandations pratiques
-- Race d'abeille la plus adaptée à cette zone
-- Période optimale de butinage
-- 3 actions concrètes pour maximiser la production
-
-Sois précis avec des données chiffrées quand c'est possible."""
-
-    content = [{"type": "text", "text": prompt}]
-    if image_bytes:
-        content.insert(0, {
-            "type": "image",
-            "source": {
-                "type": "base64",
-                "media_type": "image/jpeg",
-                "data": base64.b64encode(image_bytes).decode("utf-8"),
-            }
-        })
-        content.append({"type": "text",
-                         "text": "Analyse la photo/vidéo de l'environnement fournie pour identifier la flore visible et affiner ton diagnostic."})
-
-    try:
-        response = client.messages.create(
-            model="claude-opus-4-5",
-            max_tokens=1800,
-            messages=[{"role": "user", "content": content}]
-        )
-        return response.content[0].text
-    except Exception as e:
-        return f"Erreur IA : {e}"
-
-
-def ia_analyser_zone_carto(nom_zone, flore, superficie, ndvi, potentiel, type_zone,
-                            latitude=None, longitude=None):
-    """
-    Appel IA Claude pour analyse IA d'une zone cartographiée.
-    Retourne un diagnostic JSON structuré + recommandations.
-    """
-    client = get_anthropic_client()
-    if not client:
-        return None
-
-    coords_str = f"à {latitude}°N, {longitude}°E" if latitude else ""
-    prompt = f"""Tu es expert apicole et écologue. Analyse cette zone mellifère cartographiée.
-
-Zone : **{nom_zone}** {coords_str}
-- Type : {type_zone}
-- Flore principale : {flore}
-- Superficie : {superficie} ha
-- NDVI mesuré : {ndvi} (0=sol nu, 1=végétation dense)
-- Potentiel estimé : {potentiel}
-
-Réponds UNIQUEMENT avec un objet JSON valide (pas de markdown, pas de texte avant/après) :
-
-{{
-  "diagnostic": {{
-    "potentiel_global": "Élevé",
-    "indice_mellifere": 8,
-    "capacite_ruches": 12,
-    "saison_pic": "Avril-Juin"
-  }},
-  "scores": {{
-    "miel": {{"note": 4, "etoiles": "⭐⭐⭐⭐", "detail": "Nectar abondant grâce à..."}},
-    "pollen": {{"note": 3, "etoiles": "⭐⭐⭐", "detail": "Diversité florale..."}},
-    "propolis": {{"note": 2, "etoiles": "⭐⭐", "detail": "Présence résines..."}},
-    "gelee_royale": {{"note": 3, "etoiles": "⭐⭐⭐", "detail": "Protéines disponibles..."}}
-  }},
-  "flore_identifiee": [
-    {{"espece": "Ziziphus lotus", "nectar": true, "pollen": true, "resine": false, "periode": "Avr-Juin", "qualite": "Excellente"}},
-    {{"espece": "...", "nectar": true, "pollen": false, "resine": false, "periode": "...", "qualite": "..."}}
-  ],
-  "risques": ["Risque 1...", "Risque 2..."],
-  "recommandations": ["Action 1...", "Action 2...", "Action 3..."],
-  "race_adaptee": "intermissa",
-  "resume": "Phrase de synthèse de 1-2 lignes sur cette zone."
-}}"""
-
-    try:
-        response = client.messages.create(
-            model="claude-opus-4-5",
-            max_tokens=1200,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        text = response.content[0].text.strip()
-        # Nettoyage éventuel
-        if text.startswith("```"):
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
-        return json.loads(text)
-    except Exception as e:
-        return {"error": str(e)}
-
-
-def afficher_resultat_ia_zone(texte, titre="🤖 Analyse IA"):
-    """Alias pour compatibilité."""
-    afficher_resultat_ia(texte, titre)
-
-
+# Alias de compatibilité
 def widget_cle_api():
-    """Alias vers le nouveau sélecteur multi-fournisseurs."""
     return widget_ia_selector()
 
 
@@ -1751,10 +1368,6 @@ def sidebar():
             st.session_state.page = "dashboard"
 
         for label, key in pages.items():
-            active = st.session_state.page == key
-            bg = "rgba(200,130,10,.18)" if active else "transparent"
-            border = "#C8820A" if active else "transparent"
-            color = "#F5C842" if active else "#b8956a"
             if st.sidebar.button(label, key=f"nav_{key}", use_container_width=True):
                 st.session_state.page = key
                 st.rerun()
@@ -1831,7 +1444,6 @@ def page_dashboard():
             df_ruches.columns = ["Ruche","Race","Varroa%","Cadres","Poids(kg)","Statut"]
             st.dataframe(df_ruches, use_container_width=True, hide_index=True)
 
-    # Alertes rapides
     st.markdown("### ⚠️ Alertes actives")
     df_alertes = pd.read_sql("""
         SELECT r.nom, i.varroa_pct, i.date_inspection, i.notes
@@ -1943,7 +1555,6 @@ def page_inspections():
             csv = df.to_csv(index=False).encode("utf-8")
             st.download_button("⬇️ Exporter CSV", csv, "inspections.csv", "text/csv")
 
-        # Graphique varroa par ruche
         st.markdown("### 📈 Évolution du varroa")
         df_v = pd.read_sql("""
             SELECT r.nom, i.date_inspection, i.varroa_pct
@@ -2161,7 +1772,6 @@ RUTTNER_REF = {
 }
 
 def classify_race(aile, cubital, glossa):
-    """Classification simplifiée selon Ruttner 1988."""
     scores = {}
     for race, ref in RUTTNER_REF.items():
         s = 0
@@ -2180,10 +1790,9 @@ def classify_race(aile, cubital, glossa):
 
 def page_morpho():
     st.markdown("## 🧬 Morphométrie IA — Classification raciale")
-    st.markdown("<p style='color:#A8B4CC'>Mesures morphométriques + analyse Claude IA (Ruttner 1988)</p>",
+    st.markdown("<p style='color:#A8B4CC'>Mesures morphométriques + analyse IA multi-fournisseurs (Ruttner 1988)</p>",
                 unsafe_allow_html=True)
 
-    # ── Clé API ──────────────────────────────────────────────────────────────
     ia_active = widget_cle_api()
 
     conn = get_db()
@@ -2217,7 +1826,7 @@ def page_morpho():
             notes = st.text_area("Notes / Observations")
 
             st.markdown("### 📷 Photo macro (optionnel)")
-            st.markdown("<small style='color:#A8B4CC'>Téléversez une photo macro de l'aile ou de l'abeille pour affiner l'analyse IA</small>",
+            st.markdown("<small style='color:#A8B4CC'>Photo macro de l'aile ou de l'abeille (si le fournisseur IA supporte la vision)</small>",
                         unsafe_allow_html=True)
             img_file = st.file_uploader("Photo macro abeille", type=["jpg","jpeg","png","webp"],
                                         key="morpho_img")
@@ -2233,7 +1842,6 @@ def page_morpho():
             race_prob  = max(scores, key=scores.get)
             confiance  = scores[race_prob]
 
-            # Bannière résultat
             st.markdown(f"""
             <div style='background:#0F1117;border:1px solid #C8820A;border-left:4px solid #C8820A;
                         border-radius:8px;padding:12px 16px;margin-bottom:12px'>
@@ -2247,7 +1855,6 @@ def page_morpho():
             </div>
             """, unsafe_allow_html=True)
 
-            # Barres de confiance
             couleurs = {"intermissa":"#C8820A","sahariensis":"#8B7355",
                         "ligustica":"#2E7D32","carnica":"#1565C0","hybride":"#888"}
             fig = go.Figure()
@@ -2261,7 +1868,6 @@ def page_morpho():
                               xaxis=dict(range=[0,100], title="Confiance (%)"))
             st.plotly_chart(fig, use_container_width=True)
 
-            # Scores de production (étoiles)
             prod_scores = {
                 "intermissa":   {"miel":4,"pollen":3,"propolis":5,"gr":2},
                 "sahariensis":  {"miel":3,"pollen":4,"propolis":3,"gr":2},
@@ -2282,7 +1888,6 @@ def page_morpho():
                              f"<div style='text-align:center;font-size:.85rem'>{etoiles}</div>",
                              unsafe_allow_html=True)
 
-        # ── Sauvegarde locale ──────────────────────────────────────────────
         if btn_local:
             rid = opts[ruche_sel]
             conf_json = json.dumps([{"race": r, "confiance": p} for r, p in scores.items()])
@@ -2312,18 +1917,17 @@ def page_morpho():
             st.download_button("⬇️ Télécharger JSON", json.dumps(result_json, indent=2, ensure_ascii=False),
                                f"morpho_{datetime.date.today()}.json", "application/json")
 
-        # ── Analyse IA Claude ──────────────────────────────────────────────
         if btn_ia:
             img_bytes = img_file.read() if img_file else None
-            with st.spinner("🤖 Claude analyse les données morphométriques..."):
+            prov = get_active_provider()
+            with st.spinner(f"🤖 {prov} analyse les données morphométriques..."):
                 resultat_ia = ia_analyser_morphometrie(
                     aile, largeur, cubital, glossa, tomentum, pigmentation,
                     race_prob, confiance, img_bytes
                 )
-            if resultat_ia:
-                afficher_resultat_ia(resultat_ia, "Analyse morphométrique approfondie — Claude IA")
-                log_action("Morphométrie IA", f"Ruche {ruche_sel} — analyse Claude effectuée")
-                # Sauvegarde avec note IA
+            if resultat_ia and not resultat_ia.startswith("❌"):
+                afficher_resultat_ia(resultat_ia, "Analyse morphométrique approfondie — IA")
+                log_action("Morphométrie IA", f"Ruche {ruche_sel} — analyse {prov} effectuée")
                 rid = opts[ruche_sel]
                 conf_json = json.dumps([{"race": r, "confiance": p} for r, p in scores.items()])
                 spec = " / ".join(specialisations.get(race_prob, []))
@@ -2336,8 +1940,10 @@ def page_morpho():
                       glossa, tomentum, pigmentation, race_prob, conf_json, spec,
                       f"[IA] {notes}"))
                 conn.commit()
+            elif resultat_ia:
+                st.error(resultat_ia)
             else:
-                st.warning("⚠️ IA non disponible. Configurez votre clé API Anthropic ci-dessus.")
+                st.warning("⚠️ IA non disponible. Configurez votre clé API via le sélecteur ci-dessus.")
 
     with tab2:
         df = pd.read_sql("""
@@ -2362,13 +1968,11 @@ def page_morpho():
 def page_carto():
     st.markdown("## 🗺️ Cartographie — Zones mellifères + Analyse IA")
 
-    # ── Clé API ──────────────────────────────────────────────────────────────
     ia_active = widget_cle_api()
 
     conn = get_db()
     tab1, tab2, tab3 = st.tabs(["🗺️ Carte & Zones", "🌿 Analyse environnement IA", "➕ Ajouter une zone"])
 
-    # ── TAB 1 : CARTE ─────────────────────────────────────────────────────────
     with tab1:
         df_zones  = pd.read_sql("SELECT * FROM zones", conn)
         df_ruches = pd.read_sql("SELECT * FROM ruches WHERE statut='actif' AND latitude IS NOT NULL", conn)
@@ -2409,7 +2013,6 @@ def page_carto():
         else:
             st.warning("Installez `folium` et `streamlit-folium` pour la carte interactive.")
 
-        # Tableau des zones + bouton analyse IA par zone
         st.markdown("### 📋 Zones enregistrées")
         if not df_zones.empty:
             for _, z in df_zones.iterrows():
@@ -2422,7 +2025,8 @@ def page_carto():
 
                     if st.button(f"🤖 Analyser '{z['nom']}' avec l'IA",
                                   key=f"ia_zone_{z['id']}", disabled=not ia_active):
-                        with st.spinner("🤖 Claude analyse la zone..."):
+                        prov = get_active_provider()
+                        with st.spinner(f"🤖 {prov} analyse la zone..."):
                             result = ia_analyser_zone_carto(
                                 z["nom"], z["flore_principale"],
                                 z["superficie_ha"], z["ndvi"],
@@ -2431,20 +2035,20 @@ def page_carto():
                             )
                         if result and "error" not in result:
                             _afficher_diagnostic_zone(result, z["nom"])
-                            log_action("Analyse IA zone", f"Zone '{z['nom']}' analysée par Claude")
+                            log_action("Analyse IA zone", f"Zone '{z['nom']}' analysée par {prov}")
                         elif result:
                             st.error(f"Erreur IA : {result.get('error')}")
                         else:
-                            st.warning("⚠️ Configurez votre clé API Anthropic.")
+                            st.warning("⚠️ Configurez votre clé API via le sélecteur ci-dessus.")
 
-    # ── TAB 2 : ANALYSE ENVIRONNEMENT IA ─────────────────────────────────────
     with tab2:
         st.markdown("### 🌿 Analyse IA d'un environnement mellifère")
         st.markdown("""
         <div style='background:#0D2A1F;border:1px solid #1A5C3A;border-radius:8px;padding:12px;
                     font-size:.83rem;color:#F0F4FF;margin-bottom:16px'>
-        📸 Décrivez votre environnement (ou téléversez une photo du paysage) et l'IA évalue
-        le potentiel <b>Miel / Pollen / Propolis / Gelée royale</b> sur une échelle /5 ⭐
+        📸 Décrivez votre environnement (ou téléversez une photo) et l'IA évalue
+        le potentiel <b>Miel / Pollen / Propolis / Gelée royale</b> sur une échelle /5 ⭐<br>
+        ✅ Fonctionne avec <b>Gemma, Claude, Groq, Mistral, OpenRouter</b> et tous les fournisseurs configurés.
         </div>
         """, unsafe_allow_html=True)
 
@@ -2477,27 +2081,27 @@ def page_carto():
             if env_img:
                 st.image(env_img, caption="Aperçu de l'environnement", use_container_width=True)
 
-        btn_env = st.button("🤖 Lancer l'analyse IA de l'environnement",
+        prov_actif = get_active_provider()
+        btn_env = st.button(f"🤖 Lancer l'analyse avec {prov_actif.split('(')[0].strip()}",
                              use_container_width=True, disabled=not ia_active)
 
         if not ia_active:
-            st.info("🔑 Configurez votre clé API Anthropic (en haut de page) pour activer l'analyse IA.")
+            st.info("🔑 Configurez votre clé API (sélecteur ci-dessus) pour activer l'analyse IA.")
 
         if btn_env:
             if not description.strip():
                 st.warning("⚠️ Veuillez décrire l'environnement.")
             else:
                 img_bytes = env_img.read() if env_img else None
-                with st.spinner("🤖 Claude analyse l'environnement mellifère... (5-15 secondes)"):
+                with st.spinner(f"🤖 {prov_actif} analyse l'environnement mellifère... (5-15 secondes)"):
                     resultat = ia_analyser_environnement(
                         description, env_lat, env_lon, saison, img_bytes
                     )
-                if resultat and not resultat.startswith("Erreur"):
-                    afficher_resultat_ia(resultat, "Analyse environnementale mellifère — Claude IA")
+                if resultat and not resultat.startswith("❌"):
+                    afficher_resultat_ia(resultat, "Analyse environnementale mellifère — IA")
                     log_action("Analyse IA environnement",
-                               f"Zone {env_lat:.2f},{env_lon:.2f} — {saison}")
+                               f"Zone {env_lat:.2f},{env_lon:.2f} — {saison} — {prov_actif}")
 
-                    # Proposer de sauvegarder en zone
                     st.markdown("---")
                     st.markdown("**💾 Sauvegarder cette zone dans la cartographie ?**")
                     with st.form("save_env_zone"):
@@ -2517,7 +2121,6 @@ def page_carto():
                 elif resultat:
                     st.error(resultat)
 
-    # ── TAB 3 : AJOUTER ZONE ─────────────────────────────────────────────────
     with tab3:
         with st.form("add_zone"):
             col1, col2 = st.columns(2)
@@ -2549,7 +2152,6 @@ def page_carto():
 
 
 def _afficher_diagnostic_zone(result, nom_zone):
-    """Affiche le diagnostic IA d'une zone cartographiée."""
     d = result.get("diagnostic", {})
     scores = result.get("scores", {})
 
@@ -2568,7 +2170,6 @@ def _afficher_diagnostic_zone(result, nom_zone):
     </div>
     """, unsafe_allow_html=True)
 
-    # Scores de production
     if scores:
         st.markdown("**Scores de production :**")
         cols_sc = st.columns(4)
@@ -2587,14 +2188,12 @@ def _afficher_diagnostic_zone(result, nom_zone):
                 </div>
                 """, unsafe_allow_html=True)
 
-    # Flore identifiée
     flore_list = result.get("flore_identifiee", [])
     if flore_list:
         st.markdown("**Flore identifiée par l'IA :**")
         df_f = pd.DataFrame(flore_list)
         st.dataframe(df_f, use_container_width=True, hide_index=True)
 
-    # Recommandations
     recs = result.get("recommandations", [])
     if recs:
         st.markdown("**Recommandations :**")
@@ -2645,7 +2244,6 @@ def page_meteo():
             """, unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
-
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("### 📈 Indice de butinage prévisionnel")
@@ -2706,7 +2304,6 @@ def page_genetique():
         df_display = df_display.round(2)
         st.dataframe(df_display, use_container_width=True, hide_index=True)
 
-        # Radar chart
         st.markdown("### 🕸️ Profil de caractérisation")
         ruche_sel = st.selectbox("Choisir une ruche", df["nom"].tolist())
         row = df[df["nom"] == ruche_sel].iloc[0]
@@ -2715,7 +2312,7 @@ def page_genetique():
             min(100, row["production_totale"] * 2),
             row["VSH_score"],
             max(0, 100 - row["varroa_moy"] * 15),
-            70, 60  # valeurs simulées
+            70, 60
         ]
         fig = go.Figure(go.Scatterpolar(
             r=values + [values[0]], theta=categories + [categories[0]],
@@ -2775,21 +2372,18 @@ def page_alertes():
     st.markdown("## ⚠️ Alertes")
     conn = get_db()
 
-    # Varroa critique
     df_crit = pd.read_sql("""
         SELECT r.nom, i.varroa_pct, i.date_inspection, i.notes
         FROM inspections i JOIN ruches r ON r.id=i.ruche_id
         WHERE i.varroa_pct >= 3.0 AND i.date_inspection >= date('now','-7 days')
         ORDER BY i.varroa_pct DESC
     """, conn)
-    # Varroa attention
     df_warn = pd.read_sql("""
         SELECT r.nom, i.varroa_pct, i.date_inspection
         FROM inspections i JOIN ruches r ON r.id=i.ruche_id
         WHERE i.varroa_pct >= 2.0 AND i.varroa_pct < 3.0 AND i.date_inspection >= date('now','-7 days')
         ORDER BY i.varroa_pct DESC
     """, conn)
-    # Top productrices GR
     df_gr = pd.read_sql("""
         SELECT r.nom, SUM(rec.quantite_kg) as total, MAX(rec.hda_pct) as hda
         FROM recoltes rec JOIN ruches r ON r.id=rec.ruche_id
@@ -2866,11 +2460,10 @@ def page_admin():
                     font-size:.84rem;color:#F0F4FF;margin-bottom:16px'>
         <b>ApiTrack Pro supporte 10 fournisseurs IA 100% gratuits.</b>
         Configurez une ou plusieurs clés — l'app utilisera le fournisseur actif sélectionné.
-        Pour changer de fournisseur depuis n'importe quelle page IA, utilisez le sélecteur intégré.
+        <b>Gemma, Groq, Mistral, OpenRouter</b> fonctionnent tous sans restriction Anthropic.
         </div>
         """, unsafe_allow_html=True)
 
-        # Tableau récapitulatif des fournisseurs
         rows = []
         for pname, cfg in IA_PROVIDERS.items():
             key = get_api_key_for_provider(pname)
@@ -2899,21 +2492,6 @@ def page_admin():
         {f"<br>⚠️ {cfg_sel['note']}" if cfg_sel.get('note') else ""}
         </div>
         """, unsafe_allow_html=True)
-
-        # Instructions spéciales GitHub Models
-        if cfg_sel.get("type") == "github_models":
-            st.markdown("""
-            <div style='background:#0D1A2A;border:1px solid #1A3A5C;border-radius:6px;
-                        padding:12px 14px;font-size:.8rem;color:#F0F4FF;margin-bottom:10px'>
-            <b>🐙 Créer le token GitHub correct (Fine-grained PAT) :</b><br>
-            1. <a href='https://github.com/settings/personal-access-tokens/new' target='_blank'>
-               github.com/settings/personal-access-tokens/new</a><br>
-            2. Choisissez <b>"Fine-grained personal access token"</b><br>
-            3. <b>Permissions → Account permissions → Models → Read-only</b><br>
-            4. Générez et copiez le token <code>github_pat_xxxx...</code><br>
-            5. ⚠️ <b>Les tokens classiques <code>ghp_</code> retournent HTTP 401</b> — utilisez uniquement un Fine-grained PAT
-            </div>
-            """, unsafe_allow_html=True)
 
         with st.form(f"key_form_{prov_sel}"):
             new_key = st.text_input(
@@ -2947,7 +2525,6 @@ def page_admin():
             st.success("✅ Clé supprimée.")
             st.rerun()
 
-        # Test rapide
         if key_actuelle:
             if st.button("🔬 Tester la connexion", key="admin_test_ia"):
                 with st.spinner("Test en cours..."):
