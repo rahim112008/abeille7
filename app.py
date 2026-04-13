@@ -67,103 +67,481 @@ DB_PATH = "apitrack.db"
 def inject_css():
     st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
-    /* Variables */
+    /* ═══════════════════════════════════════════════
+       VARIABLES — Thème sombre haute lisibilité
+    ═══════════════════════════════════════════════ */
     :root {
-        --honey: #C8820A;
-        --honey-light: #F5C842;
-        --honey-bg: #FFF8E8;
-        --dark: #1a1209;
-        --muted: #8B7355;
-        --surface: #FFFDF7;
-        --border: #E8D9B0;
+        --gold:         #F5A623;
+        --gold-light:   #FFD07A;
+        --gold-dark:    #C8820A;
+        --bg-app:       #0F1117;
+        --bg-main:      #161B27;
+        --bg-card:      #1E2535;
+        --bg-card2:     #252D40;
+        --bg-input:     #1A2030;
+        --border:       #2E3A52;
+        --border-light: #3A4A66;
+        --text-primary: #F0F4FF;
+        --text-second:  #A8B4CC;
+        --text-muted:   #6B7A99;
+        --text-label:   #8899BB;
+        --green:        #34D399;
+        --green-bg:     #0D2A1F;
+        --green-border: #1A5C3A;
+        --yellow:       #FBD147;
+        --yellow-bg:    #2A200A;
+        --yellow-border:#4A3A10;
+        --red:          #F87171;
+        --red-bg:       #2A0D0D;
+        --red-border:   #5C1A1A;
+        --blue:         #60A5FA;
+        --blue-bg:      #0D1A2A;
+        --blue-border:  #1A3A5C;
     }
 
-    /* Fond général */
-    .stApp { background-color: #FFF8E8; }
-    .main .block-container { padding: 1.5rem 2rem; max-width: 1400px; }
-
-    /* Sidebar */
-    [data-testid="stSidebar"] {
-        background: #2C1A06 !important;
-        border-right: 1px solid #3d2a0e;
-    }
-    [data-testid="stSidebar"] * { color: #b8956a !important; }
-    [data-testid="stSidebar"] .stSelectbox label { color: #7a5c3a !important; }
-
-    /* Titres */
-    h1 { font-family: 'Playfair Display', serif !important; color: #1a1209 !important; }
-    h2 { font-family: 'Playfair Display', serif !important; color: #2C1A06 !important; font-size: 1.3rem !important; }
-    h3 { font-family: 'Inter', sans-serif !important; color: #4a3410 !important; font-size: 1rem !important; font-weight: 500 !important; }
-
-    /* Métriques */
-    [data-testid="metric-container"] {
-        background: #FFFDF7;
-        border: 1px solid #E8D9B0;
-        border-radius: 10px;
-        padding: 14px 16px;
-        border-top: 3px solid #C8820A;
-    }
-    [data-testid="stMetricValue"] { color: #1a1209 !important; font-family: 'Playfair Display', serif !important; font-size: 2rem !important; }
-    [data-testid="stMetricLabel"] { color: #8B7355 !important; font-size: 0.75rem !important; text-transform: uppercase; letter-spacing: 0.06em; }
-
-    /* Boutons */
-    .stButton > button {
-        background: #C8820A !important;
-        color: white !important;
-        border: none !important;
-        border-radius: 6px !important;
+    /* ═══════════════════════════════════════════════
+       FOND GÉNÉRAL
+    ═══════════════════════════════════════════════ */
+    .stApp {
+        background-color: var(--bg-app) !important;
+        color: var(--text-primary) !important;
         font-family: 'Inter', sans-serif !important;
-        font-weight: 500 !important;
-        font-size: 0.85rem !important;
     }
-    .stButton > button:hover { background: #a06808 !important; }
+    .main .block-container {
+        padding: 1.5rem 2rem;
+        max-width: 1400px;
+        background: var(--bg-main) !important;
+    }
+    /* Texte général Streamlit */
+    .stApp p, .stApp span, .stApp div, .stApp label,
+    .stMarkdown, .stMarkdown p {
+        color: var(--text-primary) !important;
+    }
 
-    /* Tables */
-    .dataframe { font-family: 'Inter', sans-serif !important; font-size: 0.82rem !important; }
-    thead th { background: #FFF8E8 !important; color: #8B7355 !important; font-weight: 500 !important; text-transform: uppercase; font-size: 0.7rem !important; letter-spacing: 0.06em; }
+    /* ═══════════════════════════════════════════════
+       SIDEBAR — Fond très sombre, texte clair
+    ═══════════════════════════════════════════════ */
+    [data-testid="stSidebar"] {
+        background: #080C14 !important;
+        border-right: 1px solid var(--border) !important;
+    }
+    [data-testid="stSidebar"] * {
+        color: #C8D8F0 !important;
+    }
+    [data-testid="stSidebar"] button {
+        background: transparent !important;
+        color: #A8B4CC !important;
+        border: none !important;
+        text-align: left !important;
+        font-size: 0.875rem !important;
+        padding: 8px 12px !important;
+        border-radius: 6px !important;
+        transition: all 0.15s !important;
+    }
+    [data-testid="stSidebar"] button:hover {
+        background: rgba(245,166,35,0.12) !important;
+        color: var(--gold-light) !important;
+    }
 
-    /* Cards custom */
+    /* ═══════════════════════════════════════════════
+       TITRES — Tous bien contrastés
+    ═══════════════════════════════════════════════ */
+    h1, h2, h3, h4, h5, h6,
+    [data-testid="stMarkdownContainer"] h1,
+    [data-testid="stMarkdownContainer"] h2,
+    [data-testid="stMarkdownContainer"] h3 {
+        color: var(--text-primary) !important;
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 600 !important;
+    }
+    h2 { font-size: 1.4rem !important; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 16px; }
+    h3 { font-size: 1.05rem !important; color: var(--gold-light) !important; }
+
+    /* ═══════════════════════════════════════════════
+       MÉTRIQUES
+    ═══════════════════════════════════════════════ */
+    [data-testid="metric-container"] {
+        background: var(--bg-card) !important;
+        border: 1px solid var(--border) !important;
+        border-top: 3px solid var(--gold) !important;
+        border-radius: 10px !important;
+        padding: 16px !important;
+    }
+    [data-testid="stMetricValue"] {
+        color: var(--gold-light) !important;
+        font-size: 2rem !important;
+        font-weight: 700 !important;
+    }
+    [data-testid="stMetricLabel"] {
+        color: var(--text-second) !important;
+        font-size: 0.75rem !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.06em !important;
+    }
+    [data-testid="stMetricDelta"] { color: var(--green) !important; }
+
+    /* ═══════════════════════════════════════════════
+       BOUTONS
+    ═══════════════════════════════════════════════ */
+    .stButton > button {
+        background: var(--gold-dark) !important;
+        color: #FFFFFF !important;
+        border: none !important;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        font-size: 0.875rem !important;
+        padding: 8px 18px !important;
+        letter-spacing: 0.02em !important;
+        transition: all 0.15s !important;
+    }
+    .stButton > button:hover {
+        background: var(--gold) !important;
+        transform: translateY(-1px) !important;
+        box-shadow: 0 4px 12px rgba(245,166,35,0.3) !important;
+    }
+
+    /* ═══════════════════════════════════════════════
+       INPUTS, SELECT, TEXTAREA
+    ═══════════════════════════════════════════════ */
+    .stTextInput input,
+    .stNumberInput input,
+    .stTextArea textarea,
+    [data-testid="stTextInput"] input,
+    [data-testid="stNumberInput"] input {
+        background: var(--bg-input) !important;
+        color: var(--text-primary) !important;
+        border: 1.5px solid var(--border-light) !important;
+        border-radius: 8px !important;
+        font-size: 0.9rem !important;
+    }
+    .stTextInput input:focus,
+    .stNumberInput input:focus,
+    .stTextArea textarea:focus {
+        border-color: var(--gold) !important;
+        box-shadow: 0 0 0 2px rgba(245,166,35,0.2) !important;
+    }
+    /* Placeholder lisible */
+    .stTextInput input::placeholder,
+    .stTextArea textarea::placeholder {
+        color: var(--text-muted) !important;
+    }
+    /* Labels des inputs */
+    .stTextInput label, .stNumberInput label,
+    .stTextArea label, .stSelectbox label,
+    .stSlider label, .stCheckbox label,
+    .stFileUploader label {
+        color: var(--text-second) !important;
+        font-weight: 500 !important;
+        font-size: 0.875rem !important;
+    }
+
+    /* Selectbox */
+    [data-testid="stSelectbox"] > div > div {
+        background: var(--bg-input) !important;
+        color: var(--text-primary) !important;
+        border: 1.5px solid var(--border-light) !important;
+        border-radius: 8px !important;
+    }
+    [data-testid="stSelectbox"] span,
+    [data-testid="stSelectbox"] p {
+        color: var(--text-primary) !important;
+    }
+
+    /* ═══════════════════════════════════════════════
+       TABLEAUX (dataframes)
+    ═══════════════════════════════════════════════ */
+    .stDataFrame, [data-testid="stDataFrame"] {
+        border: 1px solid var(--border) !important;
+        border-radius: 8px !important;
+        overflow: hidden !important;
+    }
+    .stDataFrame table {
+        background: var(--bg-card) !important;
+        color: var(--text-primary) !important;
+    }
+    .stDataFrame thead th {
+        background: var(--bg-card2) !important;
+        color: var(--gold-light) !important;
+        font-weight: 600 !important;
+        font-size: 0.78rem !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.06em !important;
+        border-bottom: 1px solid var(--border) !important;
+        padding: 10px 12px !important;
+    }
+    .stDataFrame tbody td {
+        color: var(--text-primary) !important;
+        background: var(--bg-card) !important;
+        border-bottom: 1px solid var(--border) !important;
+        padding: 8px 12px !important;
+        font-size: 0.875rem !important;
+    }
+    .stDataFrame tbody tr:hover td {
+        background: var(--bg-card2) !important;
+    }
+
+    /* ═══════════════════════════════════════════════
+       ALERTES / INFO / WARNING / SUCCESS / ERROR
+    ═══════════════════════════════════════════════ */
+    [data-testid="stAlert"],
+    .stAlert {
+        border-radius: 8px !important;
+        border-width: 1px !important;
+        padding: 12px 16px !important;
+    }
+    /* Success */
+    [data-testid="stAlert"][kind="success"],
+    .element-container .stSuccess {
+        background: var(--green-bg) !important;
+        border-color: var(--green-border) !important;
+        color: #6EE7B7 !important;
+    }
+    /* Warning */
+    [data-testid="stAlert"][kind="warning"],
+    .element-container .stWarning {
+        background: var(--yellow-bg) !important;
+        border-color: var(--yellow-border) !important;
+        color: #FDE68A !important;
+    }
+    /* Error */
+    [data-testid="stAlert"][kind="error"],
+    .element-container .stError {
+        background: var(--red-bg) !important;
+        border-color: var(--red-border) !important;
+        color: #FCA5A5 !important;
+    }
+    /* Info */
+    [data-testid="stAlert"][kind="info"],
+    .element-container .stInfo {
+        background: var(--blue-bg) !important;
+        border-color: var(--blue-border) !important;
+        color: #93C5FD !important;
+    }
+    /* Texte dans les alertes */
+    [data-testid="stAlert"] p,
+    [data-testid="stAlert"] div,
+    [data-testid="stAlert"] span {
+        color: inherit !important;
+    }
+
+    /* ═══════════════════════════════════════════════
+       TABS (onglets)
+    ═══════════════════════════════════════════════ */
+    [data-testid="stTabs"] [role="tablist"] {
+        background: var(--bg-card) !important;
+        border-bottom: 1px solid var(--border) !important;
+        border-radius: 8px 8px 0 0 !important;
+        padding: 4px 8px 0 !important;
+    }
+    [data-testid="stTabs"] button[role="tab"] {
+        color: var(--text-second) !important;
+        font-weight: 500 !important;
+        font-size: 0.875rem !important;
+        background: transparent !important;
+        border: none !important;
+        padding: 8px 16px !important;
+        border-bottom: 2px solid transparent !important;
+    }
+    [data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+        color: var(--gold) !important;
+        border-bottom: 2px solid var(--gold) !important;
+        font-weight: 600 !important;
+    }
+    [data-testid="stTabs"] button[role="tab"]:hover {
+        color: var(--gold-light) !important;
+        background: rgba(245,166,35,0.08) !important;
+    }
+    [data-testid="stTabsContent"] {
+        background: var(--bg-card) !important;
+        border: 1px solid var(--border) !important;
+        border-top: none !important;
+        border-radius: 0 0 8px 8px !important;
+        padding: 16px !important;
+    }
+
+    /* ═══════════════════════════════════════════════
+       EXPANDERS
+    ═══════════════════════════════════════════════ */
+    [data-testid="stExpander"] {
+        background: var(--bg-card) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 8px !important;
+    }
+    [data-testid="stExpander"] summary {
+        color: var(--text-primary) !important;
+        font-weight: 500 !important;
+        background: var(--bg-card) !important;
+    }
+    [data-testid="stExpander"] summary:hover {
+        background: var(--bg-card2) !important;
+        color: var(--gold-light) !important;
+    }
+    [data-testid="stExpander"] > div {
+        background: var(--bg-card) !important;
+    }
+
+    /* ═══════════════════════════════════════════════
+       SLIDER
+    ═══════════════════════════════════════════════ */
+    [data-testid="stSlider"] [data-baseweb="slider"] div[role="slider"] {
+        background: var(--gold) !important;
+    }
+    [data-testid="stSlider"] [data-baseweb="slider"] div {
+        background: var(--border) !important;
+    }
+    [data-testid="stSlider"] p {
+        color: var(--text-second) !important;
+    }
+
+    /* ═══════════════════════════════════════════════
+       CHECKBOX
+    ═══════════════════════════════════════════════ */
+    [data-testid="stCheckbox"] label span {
+        color: var(--text-primary) !important;
+    }
+
+    /* ═══════════════════════════════════════════════
+       FILE UPLOADER
+    ═══════════════════════════════════════════════ */
+    [data-testid="stFileUploader"] {
+        background: var(--bg-input) !important;
+        border: 1.5px dashed var(--border-light) !important;
+        border-radius: 8px !important;
+        color: var(--text-second) !important;
+    }
+    [data-testid="stFileUploader"] span,
+    [data-testid="stFileUploader"] p {
+        color: var(--text-second) !important;
+    }
+
+    /* ═══════════════════════════════════════════════
+       DOWNLOAD BUTTON
+    ═══════════════════════════════════════════════ */
+    [data-testid="stDownloadButton"] button {
+        background: var(--bg-card2) !important;
+        color: var(--gold-light) !important;
+        border: 1px solid var(--gold-dark) !important;
+        border-radius: 8px !important;
+        font-weight: 500 !important;
+    }
+    [data-testid="stDownloadButton"] button:hover {
+        background: var(--gold-dark) !important;
+        color: #FFFFFF !important;
+    }
+
+    /* ═══════════════════════════════════════════════
+       CARTES CUSTOM (HTML)
+    ═══════════════════════════════════════════════ */
     .api-card {
-        background: #FFFDF7;
-        border: 1px solid #E8D9B0;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
         border-radius: 10px;
         padding: 16px;
         margin-bottom: 12px;
+        color: var(--text-primary);
     }
     .api-card-title {
-        font-family: 'Playfair Display', serif;
         font-size: 1rem;
         font-weight: 600;
-        color: #1a1209;
+        color: var(--gold-light);
         margin-bottom: 10px;
         padding-bottom: 8px;
-        border-bottom: 1px solid #E8D9B0;
+        border-bottom: 1px solid var(--border);
     }
 
-    /* Badges de statut */
-    .badge-ok { background:#E8F5E9; color:#2E7D32; border:1px solid #A5D6A7; padding:3px 10px; border-radius:20px; font-size:0.72rem; font-weight:500; }
-    .badge-warn { background:#FFF8E1; color:#F57F17; border:1px solid #FFE082; padding:3px 10px; border-radius:20px; font-size:0.72rem; font-weight:500; }
-    .badge-crit { background:#FFEBEE; color:#C62828; border:1px solid #EF9A9A; padding:3px 10px; border-radius:20px; font-size:0.72rem; font-weight:500; }
+    /* ═══════════════════════════════════════════════
+       BADGES DE STATUT — fond sombre, texte brillant
+    ═══════════════════════════════════════════════ */
+    .badge-ok   { background:#0D2A1F; color:#6EE7B7; border:1px solid #1A5C3A; padding:3px 10px; border-radius:20px; font-size:0.72rem; font-weight:600; }
+    .badge-warn { background:#2A200A; color:#FDE68A; border:1px solid #4A3A10; padding:3px 10px; border-radius:20px; font-size:0.72rem; font-weight:600; }
+    .badge-crit { background:#2A0D0D; color:#FCA5A5; border:1px solid #5C1A1A; padding:3px 10px; border-radius:20px; font-size:0.72rem; font-weight:600; }
 
-    /* Footer */
+    /* ═══════════════════════════════════════════════
+       FOOTER
+    ═══════════════════════════════════════════════ */
     .api-footer {
         text-align: center;
         font-size: 0.72rem;
-        color: #8B7355;
+        color: var(--text-muted);
         padding: 12px;
-        border-top: 1px solid #E8D9B0;
+        border-top: 1px solid var(--border);
         margin-top: 2rem;
         font-family: 'JetBrains Mono', monospace;
+        background: var(--bg-card);
+        border-radius: 0 0 8px 8px;
     }
 
-    /* Input styling */
-    .stTextInput input, .stNumberInput input, .stSelectbox select {
-        border: 1px solid #E8D9B0 !important;
-        border-radius: 6px !important;
-        background: #FFFDF7 !important;
+    /* ═══════════════════════════════════════════════
+       FORM SUBMIT BUTTON
+    ═══════════════════════════════════════════════ */
+    [data-testid="stFormSubmitButton"] button {
+        background: var(--gold-dark) !important;
+        color: #FFFFFF !important;
+        font-weight: 600 !important;
+        border-radius: 8px !important;
+        width: 100% !important;
     }
+    [data-testid="stFormSubmitButton"] button:hover {
+        background: var(--gold) !important;
+    }
+
+    /* ═══════════════════════════════════════════════
+       PROGRESS BAR
+    ═══════════════════════════════════════════════ */
+    [data-testid="stProgressBar"] > div {
+        background: var(--bg-card2) !important;
+    }
+    [data-testid="stProgressBar"] > div > div {
+        background: linear-gradient(90deg, var(--gold-dark), var(--gold)) !important;
+    }
+
+    /* ═══════════════════════════════════════════════
+       SPINNER
+    ═══════════════════════════════════════════════ */
+    [data-testid="stSpinner"] p {
+        color: var(--text-second) !important;
+    }
+
+    /* ═══════════════════════════════════════════════
+       SEPARATEUR HR
+    ═══════════════════════════════════════════════ */
+    hr { border-color: var(--border) !important; }
+
+    /* ═══════════════════════════════════════════════
+       LIENS
+    ═══════════════════════════════════════════════ */
+    a { color: var(--gold-light) !important; }
+    a:hover { color: var(--gold) !important; }
+
+    /* ═══════════════════════════════════════════════
+       CODE
+    ═══════════════════════════════════════════════ */
+    code {
+        background: var(--bg-card2) !important;
+        color: var(--gold-light) !important;
+        padding: 1px 6px !important;
+        border-radius: 4px !important;
+        font-family: 'JetBrains Mono', monospace !important;
+        font-size: 0.85em !important;
+    }
+
+    /* ═══════════════════════════════════════════════
+       SCROLLBAR (webkit)
+    ═══════════════════════════════════════════════ */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg-app); }
+    ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--gold-dark); }
+
+    /* ═══════════════════════════════════════════════
+       PLOTLY CHARTS — fond transparent sombre
+    ═══════════════════════════════════════════════ */
+    .js-plotly-plot .plotly .main-svg {
+        background: transparent !important;
+    }
+
     </style>
     """, unsafe_allow_html=True)
 
@@ -387,8 +765,8 @@ def login_page():
         st.markdown("""
         <div style='text-align:center;margin-bottom:24px'>
             <div style='font-size:3rem'>🐝</div>
-            <h1 style='font-family:Playfair Display,serif;color:#1a1209;font-size:2rem;margin:8px 0 4px'>ApiTrack Pro</h1>
-            <p style='color:#8B7355;font-size:.9rem'>Gestion apicole professionnelle</p>
+            <h1 style='font-family:Playfair Display,serif;color:#F0F4FF;font-size:2rem;margin:8px 0 4px'>ApiTrack Pro</h1>
+            <p style='color:#A8B4CC;font-size:.9rem'>Gestion apicole professionnelle</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -407,7 +785,7 @@ def login_page():
             else:
                 st.error("Identifiants incorrects. (Démo : admin / admin1234)")
 
-        st.markdown("<p style='text-align:center;font-size:.75rem;color:#8B7355;margin-top:16px'>admin / admin1234 pour la démo</p>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align:center;font-size:.75rem;color:#A8B4CC;margin-top:16px'>admin / admin1234 pour la démo</p>", unsafe_allow_html=True)
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -474,8 +852,8 @@ IA_PROVIDERS = {
         "env":        "GOOGLE_API_KEY",
         "url":        "https://aistudio.google.com/app/apikey",
         "prefix":     "AIzaSy",
-        "models":     ["gemma-4-31b-it", "gemma-4-27b-it", "gemini-2.0-flash"],
-        "default":    "gemma-4-31b-it",
+        "models":     ["gemini-2.0-flash", "gemma-4-31b-it", "gemma-4-27b-it", "gemini-1.5-flash"],
+        "default":    "gemini-2.0-flash",
         "quota":      "Gratuit · 1 500 req/jour · 1M tokens/min",
         "vision":     True,
         "type":       "google",
@@ -498,7 +876,8 @@ IA_PROVIDERS = {
         "url":        "https://openrouter.ai/keys",
         "prefix":     "sk-or-",
         "models":     ["meta-llama/llama-4-maverick:free", "deepseek/deepseek-r1:free",
-                       "google/gemma-3-27b-it:free", "mistralai/mistral-7b-instruct:free"],
+                       "google/gemma-3-27b-it:free", "mistralai/mistral-7b-instruct:free",
+                       "qwen/qwen3-235b-a22b:free"],
         "default":    "meta-llama/llama-4-maverick:free",
         "quota":      "Gratuit · ~50 req/jour · accès 200+ modèles",
         "vision":     False,
@@ -657,41 +1036,70 @@ def ia_call(prompt_text, image_bytes=None, json_mode=False):
                 data = json.loads(r.read())
             return data["candidates"][0]["content"]["parts"][0]["text"]
 
-        # ── 3. COHERE ─────────────────────────────────────────────────────
+        # ── 3. COHERE v2 ──────────────────────────────────────────────────
         elif ptype == "cohere":
             import urllib.request
-            payload = json.dumps({
-                "model": model,
-                "message": prompt_text,
-                "temperature": 0.3
-            }).encode()
+            # API v2 : endpoint .com (pas .ai), body messages[] (pas message), parse message.content
+            body = {
+                "model":    model,
+                "messages": [{"role": "user", "content": prompt_text}],
+                "max_tokens": 2000,
+                "temperature": 0.3,
+            }
+            if json_mode:
+                body["response_format"] = {"type": "json_object"}
+            payload = json.dumps(body).encode()
             req = urllib.request.Request(
-                "https://api.cohere.ai/v1/chat",
+                "https://api.cohere.com/v2/chat",        # ← .com + /v2/chat
                 data=payload,
-                headers={"Content-Type": "application/json",
-                         "Authorization": f"Bearer {api_key}"}
+                headers={
+                    "Content-Type":  "application/json",
+                    "Authorization": f"Bearer {api_key}",
+                    "Accept":        "application/json",
+                }
             )
             with urllib.request.urlopen(req, timeout=60) as r:
                 data = json.loads(r.read())
-            return data["text"]
+            # Réponse v2 : message.content[0].text ou message.content (str)
+            msg = data.get("message", {})
+            content = msg.get("content", "")
+            if isinstance(content, list) and content:
+                return content[0].get("text", str(content))
+            return str(content)
 
-        # ── 4. HUGGING FACE ───────────────────────────────────────────────
+        # ── 4. HUGGING FACE — Inference API v2 (chat/completions) ────────
         elif ptype == "huggingface":
             import urllib.request
-            payload = json.dumps({
-                "inputs": prompt_text,
-                "parameters": {"max_new_tokens": 1800, "temperature": 0.4}
-            }).encode()
-            url = f"https://api-inference.huggingface.co/models/{model}"
+            # Nouvelle Inference API : /v1/chat/completions (compatible OpenAI)
+            # Évite le bug "generated_text contient le prompt"
+            body = {
+                "model":    model,
+                "messages": [{"role": "user", "content": prompt_text}],
+                "max_tokens": 1800,
+                "temperature": 0.4,
+                "stream": False,
+            }
+            payload = json.dumps(body).encode()
+            url = "https://api-inference.huggingface.co/v1/chat/completions"
             req = urllib.request.Request(
                 url, data=payload,
-                headers={"Content-Type": "application/json",
-                         "Authorization": f"Bearer {api_key}"}
+                headers={
+                    "Content-Type":  "application/json",
+                    "Authorization": f"Bearer {api_key}",
+                }
             )
             with urllib.request.urlopen(req, timeout=90) as r:
                 data = json.loads(r.read())
+            # Format OpenAI standard
+            if "choices" in data:
+                return data["choices"][0]["message"]["content"]
+            # Fallback ancienne API
             if isinstance(data, list):
-                return data[0].get("generated_text", str(data))
+                full = data[0].get("generated_text", "")
+                # Retire le prompt de la réponse si présent
+                if full.startswith(prompt_text):
+                    return full[len(prompt_text):].strip()
+                return full
             return str(data)
 
         # ── 5. OPENAI-COMPATIBLE (Groq, OpenRouter, Mistral, Cerebras, Zhipu) ──
@@ -964,17 +1372,17 @@ def afficher_resultat_ia(texte, titre="🤖 Analyse IA"):
     provider = get_active_provider()
     model    = get_active_model()
     st.markdown(f"""
-    <div style='background:linear-gradient(135deg,#FFF8E8,#FFFDF7);
+    <div style='background:linear-gradient(135deg,#161B27,#1E2535);
                 border:1px solid #C8820A;border-left:4px solid #C8820A;
                 border-radius:10px;padding:20px;margin:16px 0;'>
         <div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:12px'>
-            <div style='font-family:Playfair Display,serif;font-size:1rem;font-weight:600;color:#C8820A'>
+            <div style='font-family:Playfair Display,serif;font-size:1rem;font-weight:600;color:#F5A623'>
                 🤖 {titre}
             </div>
-            <div style='font-size:.7rem;background:#FFF3D0;color:#8B7355;border:1px solid #E8D9B0;
+            <div style='font-size:.7rem;background:#1E2010;color:#A8B4CC;border:1px solid #2E3A52;
                         border-radius:20px;padding:2px 10px'>{provider} · {model}</div>
         </div>
-        <div style='font-size:.88rem;color:#1a1209;line-height:1.7'>
+        <div style='font-size:.88rem;color:#F0F4FF;line-height:1.7'>
     """, unsafe_allow_html=True)
     st.markdown(texte)
     st.markdown("</div></div>", unsafe_allow_html=True)
@@ -1002,7 +1410,7 @@ def widget_ia_selector():
             sel_model = st.selectbox("Modèle", models, index=idx_m, key="ia_model_select")
 
         st.markdown(f"""
-        <div style='font-size:.78rem;color:#8B7355;background:#FFF8E8;border-radius:6px;
+        <div style='font-size:.78rem;color:#A8B4CC;background:#0F1117;border-radius:6px;
                     padding:8px 12px;margin:6px 0;line-height:1.6'>
         📊 <b>Quota :</b> {cfg['quota']}<br>
         🖼️ <b>Vision (photo) :</b> {'✅ Oui' if cfg['vision'] else '❌ Texte seul'}<br>
@@ -1014,8 +1422,8 @@ def widget_ia_selector():
         # Instructions spéciales GitHub Models
         if cfg.get("type") == "github_models":
             st.markdown("""
-            <div style='background:#E3F2FD;border:1px solid #90CAF9;border-radius:6px;
-                        padding:10px 14px;font-size:.78rem;color:#1a1209;margin-bottom:8px'>
+            <div style='background:#0D1A2A;border:1px solid #1A3A5C;border-radius:6px;
+                        padding:10px 14px;font-size:.78rem;color:#F0F4FF;margin-bottom:8px'>
             <b>🐙 Comment créer le bon token GitHub :</b><br>
             1. Allez sur <a href='https://github.com/settings/personal-access-tokens/new' target='_blank'>
                github.com/settings/personal-access-tokens/new</a><br>
@@ -1070,7 +1478,7 @@ def widget_ia_selector():
     prov    = get_active_provider()
     mod     = get_active_model()
     if api_key:
-        st.markdown(f"<div style='font-size:.75rem;color:#2E7D32;margin-bottom:8px'>"
+        st.markdown(f"<div style='font-size:.75rem;color:#6EE7B7;margin-bottom:8px'>"
                     f"✅ IA active : <b>{prov}</b> · <code>{mod}</code></div>",
                     unsafe_allow_html=True)
         return True
@@ -1315,13 +1723,13 @@ def sidebar():
         st.markdown("""
         <div style='padding:8px 0 16px;border-bottom:1px solid #3d2a0e;margin-bottom:12px'>
             <div style='font-size:1.6rem;margin-bottom:4px'>🐝</div>
-            <div style='font-family:Playfair Display,serif;color:#F5C842;font-size:1.1rem;font-weight:600'>ApiTrack Pro</div>
-            <div style='font-size:.65rem;color:#5a4228;text-transform:uppercase;letter-spacing:.1em'>Gestion Apicole</div>
+            <div style='font-family:Playfair Display,serif;color:#F5A623;font-size:1.1rem;font-weight:600'>ApiTrack Pro</div>
+            <div style='font-size:.65rem;color:#8899BB;text-transform:uppercase;letter-spacing:.1em'>Gestion Apicole</div>
         </div>
         """, unsafe_allow_html=True)
 
         rucher_nom = get_setting("rucher_nom", "Mon Rucher")
-        st.markdown(f"<div style='font-size:.75rem;color:#7a5c3a;margin-bottom:12px'>📍 {rucher_nom}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='font-size:.75rem;color:#6B7A99;margin-bottom:12px'>📍 {rucher_nom}</div>", unsafe_allow_html=True)
 
         pages = {
             "🏠 Dashboard": "dashboard",
@@ -1351,8 +1759,8 @@ def sidebar():
                 st.session_state.page = key
                 st.rerun()
 
-        st.sidebar.markdown("<hr style='border-color:#3d2a0e;margin:12px 0'>", unsafe_allow_html=True)
-        st.sidebar.markdown(f"<div style='font-size:.75rem;color:#7a5c3a'>👤 {st.session_state.get('username','admin')}</div>", unsafe_allow_html=True)
+        st.sidebar.markdown("<hr style='border-color:#2E3A52;margin:12px 0'>", unsafe_allow_html=True)
+        st.sidebar.markdown(f"<div style='font-size:.75rem;color:#6B7A99'>👤 {st.session_state.get('username','admin')}</div>", unsafe_allow_html=True)
         if st.sidebar.button("🚪 Déconnexion", use_container_width=True):
             log_action("Déconnexion", f"Utilisateur {st.session_state.get('username')} déconnecté")
             st.session_state.logged_in = False
@@ -1366,7 +1774,7 @@ def page_dashboard():
     st.markdown("## 🏠 Tableau de bord")
     rucher = get_setting("rucher_nom", "Mon Rucher")
     localisation = get_setting("localisation", "")
-    st.markdown(f"<p style='color:#8B7355;margin-top:-10px'>Saison printanière 2025 · {rucher} · {localisation}</p>", unsafe_allow_html=True)
+    st.markdown(f"<p style='color:#A8B4CC;margin-top:-10px'>Saison printanière 2025 · {rucher} · {localisation}</p>", unsafe_allow_html=True)
 
     conn = get_db()
     nb_ruches = conn.execute("SELECT COUNT(*) FROM ruches WHERE statut='actif'").fetchone()[0]
@@ -1772,7 +2180,7 @@ def classify_race(aile, cubital, glossa):
 
 def page_morpho():
     st.markdown("## 🧬 Morphométrie IA — Classification raciale")
-    st.markdown("<p style='color:#8B7355'>Mesures morphométriques + analyse Claude IA (Ruttner 1988)</p>",
+    st.markdown("<p style='color:#A8B4CC'>Mesures morphométriques + analyse Claude IA (Ruttner 1988)</p>",
                 unsafe_allow_html=True)
 
     # ── Clé API ──────────────────────────────────────────────────────────────
@@ -1809,7 +2217,7 @@ def page_morpho():
             notes = st.text_area("Notes / Observations")
 
             st.markdown("### 📷 Photo macro (optionnel)")
-            st.markdown("<small style='color:#8B7355'>Téléversez une photo macro de l'aile ou de l'abeille pour affiner l'analyse IA</small>",
+            st.markdown("<small style='color:#A8B4CC'>Téléversez une photo macro de l'aile ou de l'abeille pour affiner l'analyse IA</small>",
                         unsafe_allow_html=True)
             img_file = st.file_uploader("Photo macro abeille", type=["jpg","jpeg","png","webp"],
                                         key="morpho_img")
@@ -1827,12 +2235,12 @@ def page_morpho():
 
             # Bannière résultat
             st.markdown(f"""
-            <div style='background:#FFF8E8;border:1px solid #C8820A;border-left:4px solid #C8820A;
+            <div style='background:#0F1117;border:1px solid #C8820A;border-left:4px solid #C8820A;
                         border-radius:8px;padding:12px 16px;margin-bottom:12px'>
-                <div style='font-size:.95rem;font-weight:600;color:#1a1209'>
-                    Race probable : <span style='color:#C8820A'>Apis mellifera {race_prob}</span>
+                <div style='font-size:.95rem;font-weight:600;color:#F0F4FF'>
+                    Race probable : <span style='color:#F5A623'>Apis mellifera {race_prob}</span>
                 </div>
-                <div style='font-size:.78rem;color:#8B7355;margin-top:3px'>
+                <div style='font-size:.78rem;color:#A8B4CC;margin-top:3px'>
                     Algorithme local · Confiance {confiance}% ·
                     aile={aile}mm / cubital={cubital} / glossa={glossa}mm
                 </div>
@@ -1870,7 +2278,7 @@ def page_morpho():
             ]):
                 note = ps[key]
                 etoiles = "⭐" * note + "☆" * (5 - note)
-                col.markdown(f"<div style='text-align:center;font-size:.75rem;color:#8B7355'>{icon} {label}</div>"
+                col.markdown(f"<div style='text-align:center;font-size:.75rem;color:#A8B4CC'>{icon} {label}</div>"
                              f"<div style='text-align:center;font-size:.85rem'>{etoiles}</div>",
                              unsafe_allow_html=True)
 
@@ -2033,8 +2441,8 @@ def page_carto():
     with tab2:
         st.markdown("### 🌿 Analyse IA d'un environnement mellifère")
         st.markdown("""
-        <div style='background:#F0F9F0;border:1px solid #A5D6A7;border-radius:8px;padding:12px;
-                    font-size:.83rem;color:#1a1209;margin-bottom:16px'>
+        <div style='background:#0D2A1F;border:1px solid #1A5C3A;border-radius:8px;padding:12px;
+                    font-size:.83rem;color:#F0F4FF;margin-bottom:16px'>
         📸 Décrivez votre environnement (ou téléversez une photo du paysage) et l'IA évalue
         le potentiel <b>Miel / Pollen / Propolis / Gelée royale</b> sur une échelle /5 ⭐
         </div>
@@ -2146,11 +2554,11 @@ def _afficher_diagnostic_zone(result, nom_zone):
     scores = result.get("scores", {})
 
     st.markdown(f"""
-    <div style='background:linear-gradient(135deg,#F0F9F0,#FFFDF7);
+    <div style='background:linear-gradient(135deg,#F0F9F0,#1E2535);
                 border:1px solid #2E7D32;border-left:4px solid #2E7D32;
                 border-radius:10px;padding:16px;margin:8px 0'>
         <div style='font-family:Playfair Display,serif;font-size:.95rem;font-weight:600;
-                    color:#2E7D32;margin-bottom:10px'>🤖 Diagnostic IA — {nom_zone}</div>
+                    color:#6EE7B7;margin-bottom:10px'>🤖 Diagnostic IA — {nom_zone}</div>
         <div style='display:flex;gap:20px;flex-wrap:wrap;margin-bottom:10px'>
             <span>🌿 Potentiel : <b>{d.get('potentiel_global','—')}</b></span>
             <span>📊 Indice mellifère : <b>{d.get('indice_mellifere','—')}/10</b></span>
@@ -2170,12 +2578,12 @@ def _afficher_diagnostic_zone(result, nom_zone):
             s = scores.get(key, {})
             with col:
                 st.markdown(f"""
-                <div style='text-align:center;background:#FFFDF7;border:1px solid #E8D9B0;
+                <div style='text-align:center;background:#1E2535;border:1px solid #2E3A52;
                             border-radius:8px;padding:10px'>
                     <div style='font-size:1.2rem'>{icons[key]}</div>
-                    <div style='font-size:.75rem;color:#8B7355;font-weight:500'>{labels[key]}</div>
+                    <div style='font-size:.75rem;color:#A8B4CC;font-weight:500'>{labels[key]}</div>
                     <div style='font-size:.9rem'>{s.get('etoiles','—')}</div>
-                    <div style='font-size:.7rem;color:#8B7355'>{s.get('detail','')[:50]}</div>
+                    <div style='font-size:.7rem;color:#A8B4CC'>{s.get('detail','')[:50]}</div>
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -2204,7 +2612,7 @@ def _afficher_diagnostic_zone(result, nom_zone):
 def page_meteo():
     st.markdown("## ☀️ Météo & Miellée — Prévisions 7 jours")
     localisation = get_setting("localisation", "Tlemcen")
-    st.markdown(f"<p style='color:#8B7355'>Données simulées · {localisation}</p>", unsafe_allow_html=True)
+    st.markdown(f"<p style='color:#A8B4CC'>Données simulées · {localisation}</p>", unsafe_allow_html=True)
 
     today = datetime.date.today()
     previsions = [
@@ -2227,10 +2635,10 @@ def page_meteo():
     for col, p in zip(cols, previsions):
         with col:
             st.markdown(f"""
-            <div style='background:#FFFDF7;border:1px solid #E8D9B0;border-radius:8px;padding:10px 6px;text-align:center'>
-                <div style='font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:#8B7355;font-weight:500'>{p['jour']}</div>
+            <div style='background:#1E2535;border:1px solid #2E3A52;border-radius:8px;padding:10px 6px;text-align:center'>
+                <div style='font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:#A8B4CC;font-weight:500'>{p['jour']}</div>
                 <div style='font-size:1.4rem;margin:4px 0'>{p['icon']}</div>
-                <div style='font-size:.85rem;font-weight:500;color:#1a1209'>{p['temp']}°C</div>
+                <div style='font-size:.85rem;font-weight:500;color:#F0F4FF'>{p['temp']}°C</div>
                 <div style='font-size:.65rem;margin-top:4px;padding:2px 4px;border-radius:4px;
                     background:{bg_butinage[p["butinage"]]};color:{couleur_butinage[p["butinage"]]}'>{p['butinage']}</div>
             </div>
@@ -2454,8 +2862,8 @@ def page_admin():
     with tab2:
         st.markdown("### 🤖 Gestion des fournisseurs IA — Tous gratuits")
         st.markdown("""
-        <div style='background:#FFF8E8;border:1px solid #C8820A;border-radius:8px;padding:14px;
-                    font-size:.84rem;color:#1a1209;margin-bottom:16px'>
+        <div style='background:#0F1117;border:1px solid #C8820A;border-radius:8px;padding:14px;
+                    font-size:.84rem;color:#F0F4FF;margin-bottom:16px'>
         <b>ApiTrack Pro supporte 10 fournisseurs IA 100% gratuits.</b>
         Configurez une ou plusieurs clés — l'app utilisera le fournisseur actif sélectionné.
         Pour changer de fournisseur depuis n'importe quelle page IA, utilisez le sélecteur intégré.
@@ -2483,7 +2891,7 @@ def page_admin():
         key_actuelle = get_api_key_for_provider(prov_sel)
 
         st.markdown(f"""
-        <div style='font-size:.8rem;background:#F0F9F0;border:1px solid #A5D6A7;
+        <div style='font-size:.8rem;background:#0D2A1F;border:1px solid #1A5C3A;
                     border-radius:6px;padding:10px;margin:8px 0'>
         🔗 Obtenir la clé : <a href='{cfg_sel["url"]}' target='_blank'>{cfg_sel["url"]}</a><br>
         📊 Quota : {cfg_sel['quota']}<br>
@@ -2495,8 +2903,8 @@ def page_admin():
         # Instructions spéciales GitHub Models
         if cfg_sel.get("type") == "github_models":
             st.markdown("""
-            <div style='background:#E3F2FD;border:1px solid #90CAF9;border-radius:6px;
-                        padding:12px 14px;font-size:.8rem;color:#1a1209;margin-bottom:10px'>
+            <div style='background:#0D1A2A;border:1px solid #1A3A5C;border-radius:6px;
+                        padding:12px 14px;font-size:.8rem;color:#F0F4FF;margin-bottom:10px'>
             <b>🐙 Créer le token GitHub correct (Fine-grained PAT) :</b><br>
             1. <a href='https://github.com/settings/personal-access-tokens/new' target='_blank'>
                github.com/settings/personal-access-tokens/new</a><br>
