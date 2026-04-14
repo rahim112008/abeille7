@@ -1,25 +1,12 @@
-# Core
-streamlit>=1.28.0
-pandas>=2.0.0
-numpy>=1.24.0
-
-# Graphiques & cartographie
-plotly>=5.17.0
-folium>=0.14.0
-streamlit-folium>=0.14.0
-
-# IA & API
-anthropic>=0.18.0
-
-# Photogrammétrie (détection pièce 10 DA)
-opencv-python>=4.8.0
-
-# Optionnel – deep learning (TensorFlow)
-tensorflow>=2.13.0
-
-# Optionnel – imagerie satellite (Sentinel Hub)
-sentinelhub>=3.9.0
-
-# Utilitaires
-pillow>=10.0.0   # gestion d'images par Streamlit
-requests>=2.31.0 # alternative à urllib (non obligatoire mais pratique)
+streamlit
+pandas
+numpy
+plotly
+folium
+streamlit-folium
+anthropic
+opencv-python
+tensorflow
+sentinelhub
+pillow
+requests
