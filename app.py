@@ -3096,61 +3096,65 @@ def page_admin():
 def main():
     inject_css()
     init_db()
-    # Ajout des tables v3 (comptabilité, tâches, analyses miel, alertes config) si besoin
-    init_db_v3()  # Fonction à définir (non présente dans l'original, mais on l'ajoute)
-    # Pour éviter une erreur, on définit rapidement init_db_v3 si elle n'existe pas
-    if 'init_db_v3' not in globals():
-        def init_db_v3():
-            conn = get_db()
-            c = conn.cursor()
-            c.executescript("""
-            CREATE TABLE IF NOT EXISTS comptabilite (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                date_op TEXT NOT NULL,
-                type_op TEXT NOT NULL CHECK(type_op IN ('recette','depense')),
-                categorie TEXT NOT NULL,
-                description TEXT,
-                montant REAL NOT NULL,
-                ruche_id INTEGER REFERENCES ruches(id),
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS taches (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                titre TEXT NOT NULL,
-                description TEXT,
-                ruche_id INTEGER REFERENCES ruches(id),
-                date_echeance TEXT NOT NULL,
-                priorite TEXT DEFAULT 'normale' CHECK(priorite IN ('urgente','haute','normale','faible')),
-                statut TEXT DEFAULT 'en_attente' CHECK(statut IN ('en_attente','en_cours','terminee','annulee')),
-                categorie TEXT DEFAULT 'inspection',
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS analyses_miel (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ruche_id INTEGER REFERENCES ruches(id),
-                date_analyse TEXT NOT NULL,
-                humidite_pct REAL,
-                conductivite_ms REAL,
-                couleur TEXT,
-                cristallisation TEXT,
-                aromes TEXT,
-                origine_florale TEXT,
-                score_qualite INTEGER,
-                label_propose TEXT,
-                ia_analyse TEXT,
-                notes TEXT
-            );
-            CREATE TABLE IF NOT EXISTS alertes_config (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                type_alerte TEXT NOT NULL,
-                seuil REAL,
-                actif INTEGER DEFAULT 1,
-                description TEXT
-            );
-            """)
-            conn.commit()
-            conn.close()
-        init_db_v3()
+    
+# Ajout de init_db_v3 comme fonction globale (avant main)
+def init_db_v3():
+    conn = get_db()
+    c = conn.cursor()
+    c.executescript("""
+    CREATE TABLE IF NOT EXISTS comptabilite (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date_op TEXT NOT NULL,
+        type_op TEXT NOT NULL CHECK(type_op IN ('recette','depense')),
+        categorie TEXT NOT NULL,
+        description TEXT,
+        montant REAL NOT NULL,
+        ruche_id INTEGER REFERENCES ruches(id),
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS taches (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        titre TEXT NOT NULL,
+        description TEXT,
+        ruche_id INTEGER REFERENCES ruches(id),
+        date_echeance TEXT NOT NULL,
+        priorite TEXT DEFAULT 'normale' CHECK(priorite IN ('urgente','haute','normale','faible')),
+        statut TEXT DEFAULT 'en_attente' CHECK(statut IN ('en_attente','en_cours','terminee','annulee')),
+        categorie TEXT DEFAULT 'inspection',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS analyses_miel (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ruche_id INTEGER REFERENCES ruches(id),
+        date_analyse TEXT NOT NULL,
+        humidite_pct REAL,
+        conductivite_ms REAL,
+        couleur TEXT,
+        cristallisation TEXT,
+        aromes TEXT,
+        origine_florale TEXT,
+        score_qualite INTEGER,
+        label_propose TEXT,
+        ia_analyse TEXT,
+        notes TEXT
+    );
+    CREATE TABLE IF NOT EXISTS alertes_config (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        type_alerte TEXT NOT NULL,
+        seuil REAL,
+        actif INTEGER DEFAULT 1,
+        description TEXT
+    );
+    """)
+    conn.commit()
+    conn.close()
+
+# ... (reste du code inchangé, y compris detect_piece_and_measure, geocode_ville, etc.)
+
+def main():
+    inject_css()
+    init_db()
+    init_db_v3()   # appel direct, plus besoin de vérification globale
 
     if "logged_in" not in st.session_state:
         st.session_state.logged_in = False
@@ -3186,7 +3190,6 @@ def main():
         <br><span style='font-size:.65rem;color:#6B7A99'>Unique au monde — Photogrammétrie · Géocodage · Import CSV</span>
     </div>
     """, unsafe_allow_html=True)
-
 
 if __name__ == "__main__":
     main()
