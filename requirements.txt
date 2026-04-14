@@ -1,24 +1,8 @@
-# Core
 streamlit>=1.28.0
 pandas>=2.0.0
 numpy>=1.24.0
-
-# Graphiques et cartographie
 plotly>=5.17.0
 folium>=0.14.0
 streamlit-folium>=0.14.0
-
-# IA
 anthropic>=0.18.0
-
-# Photogrammétrie (détection pièce de monnaie)
-opencv-python>=4.8.0
-
-# Optionnel – deep learning (si utilisé)
-tensorflow>=2.13.0
-
-# Optionnel – imagerie satellite Sentinel Hub
-sentinelhub>=3.9.0
-
-# Utilitaires (pillow est une dépendance de streamlit, mais on l'ajoute pour l'upload d'images)
-pillow>=10.0.0
+opencv-python-headless>=4.8.0
